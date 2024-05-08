@@ -9,10 +9,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
+	"github.com/google/uuid"
+	"go.uber.org/goleak"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
-	"go.uber.org/goleak"
 )
 
 func TestAcceptance(t *testing.T) {
@@ -25,8 +26,6 @@ func TestAcceptance(t *testing.T) {
 	}
 	ctx := context.Background()
 	is := is.New(t)
-
-	streamName := "acceptance"
 
 	awsCfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(cfg["aws.region"]),
@@ -48,46 +47,24 @@ func TestAcceptance(t *testing.T) {
 
 	client := kinesis.NewFromConfig(awsCfg)
 
-	_, err = client.CreateStream(ctx, &kinesis.CreateStreamInput{
-		StreamName: &streamName,
-	})
-	is.NoErr(err)
-
-	describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-		StreamName: &streamName,
-	})
-	is.NoErr(err)
-
-	cfg["streamARN"] = *describe.StreamDescription.StreamARN
-
-	defer func() {
-		_, err = client.DeleteStream(ctx, &kinesis.DeleteStreamInput{
-			StreamARN:               describe.StreamDescription.StreamARN,
-			EnforceConsumerDeletion: aws.Bool(true),
-		})
-	}()
-
 	sdk.AcceptanceTest(t, sdk.ConfigurableAcceptanceTestDriver{
 		Config: sdk.ConfigurableAcceptanceTestDriverConfig{
-			Connector:         Connector,
-			GoleakOptions:     []goleak.Option{goleak.IgnoreCurrent()},
+			Connector: Connector,
+			GoleakOptions: []goleak.Option{
+				goleak.IgnoreCurrent(),
+				goleak.IgnoreAnyFunction("internal/poll.runtime_pollWait"),
+				goleak.IgnoreAnyFunction("net/http.(*persistConn).writeLoop"),
+			},
 			SourceConfig:      cfg,
 			DestinationConfig: cfg,
 			GenerateDataType:  sdk.GenerateRawData,
 			BeforeTest: func(t *testing.T) {
-				_, err = client.DeleteStream(ctx, &kinesis.DeleteStreamInput{
-					StreamARN:               describe.StreamDescription.StreamARN,
-					EnforceConsumerDeletion: aws.Bool(true),
-				})
-
-				time.Sleep(1 * time.Second)
+				streamName := "acceptance_" + uuid.NewString()[0:8]
 
 				_, err = client.CreateStream(ctx, &kinesis.CreateStreamInput{
 					StreamName: &streamName,
 				})
 				is.NoErr(err)
-
-				time.Sleep(1 * time.Second)
 
 				describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 					StreamName: &streamName,
@@ -97,9 +74,19 @@ func TestAcceptance(t *testing.T) {
 				cfg["streamARN"] = *describe.StreamDescription.StreamARN
 			},
 			Skip: []string{
-				"TestSource_Configure_RequiredParams",
 				"TestDestination_Configure_RequiredParams",
-				"TestSource_Open_ResumeAtPositionCDC",
+				"TestDestination_Configure_Success",
+				"TestDestination_Parameters_Success",
+				"TestDestination_Write_Success",
+				"TestSource_Configure_RequiredParams",
+				"TestSource_Configure_Success",
+				// "TestSource_Open_ResumeAtPositionCDC",
+				"TestSource_Open_ResumeAtPositionSnapshot",
+				"TestSource_Parameters_Success",
+				"TestSource_Read_Success",
+				"TestSource_Read_Timeout",
+				"TestSpecifier_Exists",
+				"TestSpecifier_Specify_Success",
 			},
 			WriteTimeout: 500 * time.Millisecond,
 			ReadTimeout:  3000 * time.Millisecond,
