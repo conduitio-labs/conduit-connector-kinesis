@@ -28,3 +28,10 @@ install-tools:
 
 lint:
 	golangci-lint run -v
+
+
+up:
+	docker compose -f test/docker-compose.yml up -d
+
+down:
+	docker compose -f test/docker-compose.yml down -v

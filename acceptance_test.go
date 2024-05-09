@@ -66,6 +66,8 @@ func TestAcceptance(t *testing.T) {
 				})
 				is.NoErr(err)
 
+				time.Sleep(time.Second)
+
 				describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 					StreamName: &streamName,
 				})
@@ -75,18 +77,7 @@ func TestAcceptance(t *testing.T) {
 			},
 			Skip: []string{
 				"TestDestination_Configure_RequiredParams",
-				"TestDestination_Configure_Success",
-				"TestDestination_Parameters_Success",
-				"TestDestination_Write_Success",
 				"TestSource_Configure_RequiredParams",
-				"TestSource_Configure_Success",
-				// "TestSource_Open_ResumeAtPositionCDC",
-				"TestSource_Open_ResumeAtPositionSnapshot",
-				"TestSource_Parameters_Success",
-				"TestSource_Read_Success",
-				"TestSource_Read_Timeout",
-				"TestSpecifier_Exists",
-				"TestSpecifier_Specify_Success",
 			},
 			WriteTimeout: 500 * time.Millisecond,
 			ReadTimeout:  3000 * time.Millisecond,
