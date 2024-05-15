@@ -18,7 +18,6 @@ import (
 
 func TestAcceptance(t *testing.T) {
 	cfg := map[string]string{
-		"streamARN":           "arn:aws:kinesis:us-east-1:000000000000:stream/stream1",
 		"aws.region":          "us-east-1",
 		"aws.accessKeyId":     "accesskeymock",
 		"aws.secretAccessKey": "accesssecretmock",
@@ -47,7 +46,7 @@ func TestAcceptance(t *testing.T) {
 
 	client := kinesis.NewFromConfig(awsCfg)
 
-	sdk.AcceptanceTest(t, sdk.ConfigurableAcceptanceTestDriver{
+	testDriver := sdk.ConfigurableAcceptanceTestDriver{
 		Config: sdk.ConfigurableAcceptanceTestDriverConfig{
 			Connector: Connector,
 			GoleakOptions: []goleak.Option{
@@ -61,8 +60,10 @@ func TestAcceptance(t *testing.T) {
 			BeforeTest: func(t *testing.T) {
 				streamName := "acceptance_" + uuid.NewString()[0:8]
 
-				_, err = client.CreateStream(ctx, &kinesis.CreateStreamInput{
+				var count int32 = 1
+				_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
 					StreamName: &streamName,
+					ShardCount: &count,
 				})
 				is.NoErr(err)
 
@@ -73,6 +74,8 @@ func TestAcceptance(t *testing.T) {
 				})
 				is.NoErr(err)
 
+				time.Sleep(time.Second * 1)
+
 				cfg["streamARN"] = *describe.StreamDescription.StreamARN
 			},
 			Skip: []string{
@@ -82,5 +85,8 @@ func TestAcceptance(t *testing.T) {
 			WriteTimeout: 500 * time.Millisecond,
 			ReadTimeout:  3000 * time.Millisecond,
 		},
-	})
+	}
+
+	sdk.AcceptanceTest(t, wrappedDriver{testDriver})
+}
 }
