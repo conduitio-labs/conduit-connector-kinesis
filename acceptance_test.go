@@ -9,6 +9,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/google/uuid"
 	"go.uber.org/goleak"
 
@@ -67,16 +68,20 @@ func TestAcceptance(t *testing.T) {
 				})
 				is.NoErr(err)
 
-				time.Sleep(time.Second)
+				for {
+					describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
+						StreamName: &streamName,
+					})
+					is.NoErr(err)
 
-				describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-					StreamName: &streamName,
-				})
-				is.NoErr(err)
+					isStreamReadyForTest := describe.StreamDescription.StreamStatus == types.StreamStatusActive
+					if isStreamReadyForTest {
+						cfg["streamARN"] = *describe.StreamDescription.StreamARN
+						break
+					}
 
-				time.Sleep(time.Second * 1)
-
-				cfg["streamARN"] = *describe.StreamDescription.StreamARN
+					time.Sleep(100 * time.Millisecond)
+				}
 			},
 			Skip: []string{
 				"TestDestination_Configure_RequiredParams",
@@ -87,6 +92,5 @@ func TestAcceptance(t *testing.T) {
 		},
 	}
 
-	sdk.AcceptanceTest(t, wrappedDriver{testDriver})
-}
+	sdk.AcceptanceTest(t, testDriver)
 }
