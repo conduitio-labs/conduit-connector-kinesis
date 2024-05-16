@@ -181,7 +181,7 @@ func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
 				"shardId":        "kinesis-" + shardID,
 				"sequenceNumber": "kinesis-" + *rec.SequenceNumber,
 			},
-			sdk.RawData(kinPos.SequenceNumber),
+			sdk.RawData(kinPosBytes),
 			sdk.RawData(rec.Data),
 		)
 
