@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/oklog/ulid/v2"
+	"github.com/orcaman/concurrent-map/v2"
 )
 
 type Source struct {
@@ -23,7 +24,7 @@ type Source struct {
 	// client is the Client for the AWS Kinesis API
 	client *kinesis.Client
 
-	streamMap   map[string]*kinesis.SubscribeToShardEventStream
+	streamMap   cmap.ConcurrentMap[string, *kinesis.SubscribeToShardEventStream]
 	buffer      chan sdk.Record
 	consumerARN *string
 }
@@ -41,7 +42,7 @@ type kinesisPosition struct {
 func New() sdk.Source {
 	return sdk.SourceWithMiddleware(&Source{
 		buffer:    make(chan sdk.Record, 100),
-		streamMap: make(map[string]*kinesis.SubscribeToShardEventStream),
+		streamMap: cmap.New[*kinesis.SubscribeToShardEventStream](),
 	}, sdk.DefaultSourceMiddleware()...)
 }
 
@@ -151,7 +152,8 @@ func (s *Source) Teardown(ctx context.Context) error {
 	// 	}
 	// }
 
-	for _, stream := range s.streamMap {
+	for streamTuple := range s.streamMap.IterBuffered() {
+		stream := streamTuple.Val
 		if stream == nil {
 			continue
 		}
@@ -192,8 +194,8 @@ func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
 }
 
 func (s *Source) listenEvents(ctx context.Context) {
-	for shardID, eventStream := range s.streamMap {
-		shardID, eventStream := shardID, eventStream
+	for streamTuple := range s.streamMap.IterBuffered() {
+		shardID, eventStream := streamTuple.Key, streamTuple.Val
 
 		go func() {
 			for {
@@ -220,7 +222,8 @@ func (s *Source) listenEvents(ctx context.Context) {
 					return
 				// refresh the subscription after 5 minutes since that is when kinesis subscriptions go stale
 				case <-time.After(time.Minute*4 + time.Second*55):
-					for shardID, stream := range s.streamMap {
+					for streamTuple := range s.streamMap.IterBuffered() {
+						stream := streamTuple.Val
 						if stream != nil {
 							stream.Close()
 						}
@@ -272,7 +275,7 @@ func (s *Source) subscribeShards(ctx context.Context, position sdk.Position) err
 			return fmt.Errorf("error creating stream subscription: %w", err)
 		}
 
-		s.streamMap[*shard.ShardId] = subscriptionResponse.GetStream()
+		s.streamMap.Set(*shard.ShardId, subscriptionResponse.GetStream())
 	}
 
 	return nil
@@ -290,8 +293,7 @@ func (s *Source) resubscribeShard(ctx context.Context, shardID string) error {
 		return fmt.Errorf("error creating stream subscription: %w", err)
 	}
 
-	s.streamMap[shardID] = subscriptionResponse.GetStream()
-
+	s.streamMap.Set(shardID, subscriptionResponse.GetStream())
 	return nil
 }
 
