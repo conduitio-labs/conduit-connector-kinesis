@@ -9,15 +9,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
+	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/google/uuid"
+	"go.uber.org/goleak"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
-	"go.uber.org/goleak"
 )
 
 func TestAcceptance(t *testing.T) {
 	cfg := map[string]string{
-		"streamARN":           "arn:aws:kinesis:us-east-1:000000000000:stream/stream1",
 		"aws.region":          "us-east-1",
 		"aws.accessKeyId":     "accesskeymock",
 		"aws.secretAccessKey": "accesssecretmock",
@@ -25,8 +26,6 @@ func TestAcceptance(t *testing.T) {
 	}
 	ctx := context.Background()
 	is := is.New(t)
-
-	streamName := "acceptance"
 
 	awsCfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(cfg["aws.region"]),
@@ -48,61 +47,50 @@ func TestAcceptance(t *testing.T) {
 
 	client := kinesis.NewFromConfig(awsCfg)
 
-	_, err = client.CreateStream(ctx, &kinesis.CreateStreamInput{
-		StreamName: &streamName,
-	})
-	is.NoErr(err)
-
-	describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-		StreamName: &streamName,
-	})
-	is.NoErr(err)
-
-	cfg["streamARN"] = *describe.StreamDescription.StreamARN
-
-	defer func() {
-		_, err = client.DeleteStream(ctx, &kinesis.DeleteStreamInput{
-			StreamARN:               describe.StreamDescription.StreamARN,
-			EnforceConsumerDeletion: aws.Bool(true),
-		})
-	}()
-
-	sdk.AcceptanceTest(t, sdk.ConfigurableAcceptanceTestDriver{
+	testDriver := sdk.ConfigurableAcceptanceTestDriver{
 		Config: sdk.ConfigurableAcceptanceTestDriverConfig{
-			Connector:         Connector,
-			GoleakOptions:     []goleak.Option{goleak.IgnoreCurrent()},
+			Connector: Connector,
+			GoleakOptions: []goleak.Option{
+				goleak.IgnoreCurrent(),
+				goleak.IgnoreAnyFunction("internal/poll.runtime_pollWait"),
+				goleak.IgnoreAnyFunction("net/http.(*persistConn).writeLoop"),
+			},
 			SourceConfig:      cfg,
 			DestinationConfig: cfg,
 			GenerateDataType:  sdk.GenerateRawData,
 			BeforeTest: func(t *testing.T) {
-				_, err = client.DeleteStream(ctx, &kinesis.DeleteStreamInput{
-					StreamARN:               describe.StreamDescription.StreamARN,
-					EnforceConsumerDeletion: aws.Bool(true),
-				})
+				streamName := "acceptance_" + uuid.NewString()[0:8]
 
-				time.Sleep(1 * time.Second)
-
-				_, err = client.CreateStream(ctx, &kinesis.CreateStreamInput{
+				var count int32 = 1
+				_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
 					StreamName: &streamName,
+					ShardCount: &count,
 				})
 				is.NoErr(err)
 
-				time.Sleep(1 * time.Second)
+				for {
+					describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
+						StreamName: &streamName,
+					})
+					is.NoErr(err)
 
-				describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-					StreamName: &streamName,
-				})
-				is.NoErr(err)
+					isStreamReadyForTest := describe.StreamDescription.StreamStatus == types.StreamStatusActive
+					if isStreamReadyForTest {
+						cfg["streamARN"] = *describe.StreamDescription.StreamARN
+						break
+					}
 
-				cfg["streamARN"] = *describe.StreamDescription.StreamARN
+					time.Sleep(100 * time.Millisecond)
+				}
 			},
 			Skip: []string{
-				"TestSource_Configure_RequiredParams",
 				"TestDestination_Configure_RequiredParams",
-				"TestSource_Open_ResumeAtPositionCDC",
+				"TestSource_Configure_RequiredParams",
 			},
 			WriteTimeout: 500 * time.Millisecond,
 			ReadTimeout:  3000 * time.Millisecond,
 		},
-	})
+	}
+
+	sdk.AcceptanceTest(t, testDriver)
 }

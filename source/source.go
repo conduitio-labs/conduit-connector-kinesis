@@ -96,8 +96,8 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 		sdk.Logger(ctx).Err(err).Msg("error when attempting to test connection to stream")
 		return err
 	}
+	sdk.Logger(ctx).Info().Str("streamARN", s.config.StreamARN).Msg("stream valid")
 
-	// register consumer
 	consumerResponse, err := s.client.RegisterStreamConsumer(ctx, &kinesis.RegisterStreamConsumerInput{
 		StreamARN:    &s.config.StreamARN,
 		ConsumerName: aws.String("conduit-connector-kinesis-source-" + ulid.Make().String()),
@@ -105,8 +105,9 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 	if err != nil {
 		return fmt.Errorf("error registering consumer: %w", err)
 	}
-
-	sdk.Logger(ctx).Info().Msg("kinesis consumer registered: " + *consumerResponse.Consumer.ConsumerName)
+	sdk.Logger(ctx).Info().
+		Str("consumerName", *consumerResponse.Consumer.ConsumerName).
+		Msg("kinesis consumer registered")
 
 	s.consumerARN = consumerResponse.Consumer.ConsumerARN
 	err = s.subscribeShards(ctx, pos)
@@ -151,8 +152,13 @@ func (s *Source) Teardown(ctx context.Context) error {
 	// }
 
 	for _, stream := range s.streamMap {
-		if stream != nil {
-			stream.Close()
+		if stream == nil {
+			continue
+		}
+
+		err := stream.Close()
+		if err != nil {
+			return fmt.Errorf("error closing stream: %w", err)
 		}
 	}
 
@@ -163,9 +169,10 @@ func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
 	var sdkRecs []sdk.Record
 
 	for _, rec := range kinRecords {
-		var kinPos kinesisPosition
-		kinPos.SequenceNumber = *rec.SequenceNumber
-		kinPos.ShardID = shardID
+		kinPos := kinesisPosition{
+			SequenceNumber: *rec.SequenceNumber,
+			ShardID:        shardID,
+		}
 
 		kinPosBytes, _ := json.Marshal(kinPos)
 		sdkRec := sdk.Util.Source.NewRecordCreate(
@@ -240,10 +247,6 @@ func (s *Source) subscribeShards(ctx context.Context, position sdk.Position) err
 
 	var startingPosition types.StartingPosition
 	switch {
-	case s.config.StartFromLatest:
-		startingPosition.Type = types.ShardIteratorTypeLatest
-	case !s.config.StartFromLatest:
-		startingPosition.Type = types.ShardIteratorTypeTrimHorizon
 	case position != nil:
 		pos, err := parsePosition(position)
 		if err != nil {
@@ -252,6 +255,10 @@ func (s *Source) subscribeShards(ctx context.Context, position sdk.Position) err
 
 		startingPosition.Type = types.ShardIteratorTypeAfterSequenceNumber
 		startingPosition.SequenceNumber = &pos.SequenceNumber
+	case s.config.StartFromLatest:
+		startingPosition.Type = types.ShardIteratorTypeLatest
+	case !s.config.StartFromLatest:
+		startingPosition.Type = types.ShardIteratorTypeTrimHorizon
 	}
 
 	// get iterators for shards

@@ -78,9 +78,7 @@ func (d *Destination) Open(ctx context.Context) error {
 		StreamARN: &d.config.StreamARN,
 	})
 	if err != nil {
-		sdk.Logger(ctx).Err(err)
-		sdk.Logger(ctx).Error().Msg("error when attempting to test connection to stream")
-		return err
+		return fmt.Errorf("error when attempting to test connection to stream: %w", err)
 	}
 
 	return nil
@@ -90,10 +88,10 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 	if d.config.UseSingleShard {
 		partition := uuid.New().String()
 		var count int
-		for _, record := range records {
+		for _, rec := range records {
 			_, err := d.client.PutRecord(ctx, &kinesis.PutRecordInput{
 				PartitionKey: &partition,
-				Data:         record.Bytes(),
+				Data:         rec.Bytes(),
 				StreamARN:    &d.config.StreamARN,
 			})
 			if err != nil {
@@ -107,23 +105,22 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 	}
 
 	var entries []types.PutRecordsRequestEntry
-	var req *kinesis.PutRecordsInput
 
 	// create the put records request
-	for j := 0; j < len(records); j++ {
-		pKey := string(records[j].Key.Bytes())
+	for _, rec := range records {
+		pKey := string(rec.Key.Bytes())
 		if len(pKey) > 256 {
 			pKey = pKey[:256]
 		}
 
 		recordEntry := types.PutRecordsRequestEntry{
-			Data:         records[j].Bytes(),
+			Data:         rec.Bytes(),
 			PartitionKey: &pKey,
 		}
 		entries = append(entries, recordEntry)
 	}
 
-	req = &kinesis.PutRecordsInput{
+	req := &kinesis.PutRecordsInput{
 		StreamARN:  &d.config.StreamARN,
 		StreamName: &d.config.StreamName,
 		Records:    entries,
@@ -137,9 +134,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 
 	for _, rec := range output.Records {
 		if rec.ErrorCode != nil {
-			sdk.Logger(ctx).Error().Msgf("error when attempting to insert record %s: %s", *rec.ErrorCode, *rec.ErrorMessage)
-			sdk.Logger(ctx).Error().Str("error_code", *rec.ErrorCode)
-			continue
+			return written, fmt.Errorf("error when attempting to insert record %s: %s", *rec.ErrorCode, *rec.ErrorMessage)
 		}
 		written++
 	}
