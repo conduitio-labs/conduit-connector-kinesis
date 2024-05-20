@@ -52,7 +52,7 @@ func TestAcceptance(t *testing.T) {
 			Connector: Connector,
 			GoleakOptions: []goleak.Option{
 				goleak.IgnoreCurrent(),
-				goleak.IgnoreAnyFunction("internal/poll.runtime_pollWait"),
+				// goleak.IgnoreAnyFunction("internal/poll.runtime_pollWait"),
 				goleak.IgnoreAnyFunction("net/http.(*persistConn).writeLoop"),
 			},
 			SourceConfig:      cfg,

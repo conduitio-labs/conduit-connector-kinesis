@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
+	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 var cfg map[string]string = map[string]string{
@@ -28,7 +29,7 @@ func TestRead(t *testing.T) {
 	ctx := context.Background()
 	con := Source{
 		buffer:    make(chan sdk.Record, 1),
-		streamMap: make(map[string]*kinesis.SubscribeToShardEventStream),
+		streamMap: cmap.New[*kinesis.SubscribeToShardEventStream](),
 	}
 
 	err := con.Configure(ctx, cfg)

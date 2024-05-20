@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -13,7 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/oklog/ulid/v2"
-	"github.com/orcaman/concurrent-map/v2"
+	cmap "github.com/orcaman/concurrent-map/v2"
+	"gopkg.in/tomb.v2"
 )
 
 type Source struct {
@@ -24,6 +26,9 @@ type Source struct {
 	// client is the Client for the AWS Kinesis API
 	client *kinesis.Client
 
+	httpClient *http.Client
+
+	tomb        *tomb.Tomb
 	streamMap   cmap.ConcurrentMap[string, *kinesis.SubscribeToShardEventStream]
 	buffer      chan sdk.Record
 	consumerARN *string
@@ -41,6 +46,10 @@ type kinesisPosition struct {
 
 func New() sdk.Source {
 	return sdk.SourceWithMiddleware(&Source{
+		httpClient: &http.Client{
+			Transport: &http.Transport{},
+		},
+		tomb:      &tomb.Tomb{},
 		buffer:    make(chan sdk.Record, 100),
 		streamMap: cmap.New[*kinesis.SubscribeToShardEventStream](),
 	}, sdk.DefaultSourceMiddleware()...)
@@ -59,6 +68,9 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 
 	// Configure the creds for the client
 	var cfgOptions []func(*config.LoadOptions) error
+
+	cfgOptions = append(cfgOptions, config.WithHTTPClient(s.httpClient))
+
 	cfgOptions = append(cfgOptions, config.WithRegion(s.config.AWSRegion))
 	cfgOptions = append(cfgOptions, config.WithCredentialsProvider(
 		credentials.NewStaticCredentialsProvider(
@@ -67,15 +79,17 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 			"")))
 
 	if s.config.AWSURL != "" {
-		cfgOptions = append(cfgOptions, config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(func(_, _ string, _ ...interface{}) (aws.Endpoint, error) {
+		resolver := aws.EndpointResolverWithOptionsFunc(func(_, _ string, _ ...interface{}) (aws.Endpoint, error) {
 			return aws.Endpoint{
 				PartitionID:       "aws",
 				URL:               s.config.AWSURL,
 				SigningRegion:     s.config.AWSRegion,
 				HostnameImmutable: true,
 			}, nil
-		},
-		)))
+		})
+		withResolverOpt := config.WithEndpointResolverWithOptions(resolver)
+
+		cfgOptions = append(cfgOptions, withResolverOpt)
 	}
 
 	awsCfg, err := config.LoadDefaultConfig(ctx, cfgOptions...)
@@ -141,29 +155,40 @@ func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
 }
 
 func (s *Source) Teardown(ctx context.Context) error {
-	// if s.consumerARN != nil {
-	// 	_, err := s.client.DeregisterStreamConsumer(ctx, &kinesis.DeregisterStreamConsumerInput{
-	// 		ConsumerARN: s.consumerARN,
-	// 		StreamARN:   &s.config.StreamARN,
-	// 	})
-
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
-
-	for streamTuple := range s.streamMap.IterBuffered() {
-		stream := streamTuple.Val
-		if stream == nil {
-			continue
-		}
-
-		err := stream.Close()
+	if s.consumerARN != nil {
+		_, err := s.client.DeregisterStreamConsumer(ctx, &kinesis.DeregisterStreamConsumerInput{
+			ConsumerARN: s.consumerARN,
+			StreamARN:   &s.config.StreamARN,
+		})
 		if err != nil {
-			return fmt.Errorf("error closing stream: %w", err)
+			return fmt.Errorf(
+				"error deregistering stream consumer %s: %w",
+				*s.consumerARN, err,
+			)
 		}
 	}
 
+	s.tomb.Kill(nil)
+	if err := s.tomb.Wait(); err != nil {
+		return fmt.Errorf("error while waiting listener goroutines to cleanup: %w", err)
+	}
+
+	for streamTuple := range s.streamMap.IterBuffered() {
+		eventStream := streamTuple.Val
+		eventStream.Close()
+	}
+
+	sdk.Logger(ctx).Info().Msg("listener goroutines cleaned up")
+
+	close(s.buffer)
+
+	s.httpClient.CloseIdleConnections()
+	if transport, ok := s.httpClient.Transport.(*http.Transport); ok {
+		transport.CloseIdleConnections()
+		time.Sleep(3000 * time.Millisecond)
+	}
+
+	sdk.Logger(ctx).Info().Msg("teared down source")
 	return nil
 }
 
@@ -197,15 +222,14 @@ func (s *Source) listenEvents(ctx context.Context) {
 	for streamTuple := range s.streamMap.IterBuffered() {
 		shardID, eventStream := streamTuple.Key, streamTuple.Val
 
-		go func() {
+		s.tomb.Go(func() error {
 			for {
 				select {
 				case event := <-eventStream.Events():
 					if event == nil {
 						err := s.resubscribeShard(ctx, shardID)
 						if err != nil {
-							sdk.Logger(ctx).Err(err).Msg("error resubscribing to shard")
-							return
+							return fmt.Errorf("error resubscribing to shard: %w", err)
 						}
 					}
 
@@ -219,7 +243,8 @@ func (s *Source) listenEvents(ctx context.Context) {
 						}
 					}
 				case <-ctx.Done():
-					return
+					sdk.Logger(ctx).Debug().Msg("context cancelled, exiting listener goroutine")
+					return nil
 				// refresh the subscription after 5 minutes since that is when kinesis subscriptions go stale
 				case <-time.After(time.Minute*4 + time.Second*55):
 					for streamTuple := range s.streamMap.IterBuffered() {
@@ -230,12 +255,12 @@ func (s *Source) listenEvents(ctx context.Context) {
 
 						err := s.resubscribeShard(ctx, shardID)
 						if err != nil {
-							sdk.Logger(ctx).Err(err).Msg("error resubscribing to shard")
+							return fmt.Errorf("error resubscribing to shard: %w", err)
 						}
 					}
 				}
 			}
-		}()
+		})
 	}
 }
 
