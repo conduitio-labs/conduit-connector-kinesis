@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"time"
 
@@ -124,6 +125,8 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 		Str("consumerName", *consumerResponse.Consumer.ConsumerName).
 		Msg("kinesis consumer registered")
 
+	s.waitForConsumer(ctx, consumerResponse.Consumer)
+
 	s.consumerARN = consumerResponse.Consumer.ConsumerARN
 	err = s.subscribeShards(ctx, pos)
 	if err != nil {
@@ -133,6 +136,32 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 	go s.listenEvents(ctx)
 
 	return nil
+}
+
+func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) error {
+	for count := 1; count <= 5; count++ {
+		secsToWait := math.Exp2(float64(count))
+		sdk.Logger(ctx).Info().
+			Str("consumerARN", *consumer.ConsumerARN).
+			Float64("seconds", secsToWait).
+			Msg("waiting for consumer to be ready")
+
+		time.Sleep(time.Duration(secsToWait) * time.Second)
+
+		describedConsumer, err := s.client.DescribeStreamConsumer(ctx, &kinesis.DescribeStreamConsumerInput{
+			ConsumerARN:  consumer.ConsumerARN,
+			ConsumerName: consumer.ConsumerName,
+			StreamARN:    &s.config.StreamARN,
+		})
+		if err != nil {
+			return err
+		}
+		if describedConsumer.ConsumerDescription.ConsumerStatus == types.ConsumerStatusActive {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("consumer wait timed out")
 }
 
 func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
@@ -166,29 +195,27 @@ func (s *Source) Teardown(ctx context.Context) error {
 				*s.consumerARN, err,
 			)
 		}
+
+		sdk.Logger(ctx).Info().Str("consumerARN", *s.consumerARN).Msg("deregistered stream consumer")
 	}
 
 	s.tomb.Kill(nil)
 	if err := s.tomb.Wait(); err != nil {
 		return fmt.Errorf("error while waiting listener goroutines to cleanup: %w", err)
 	}
+	sdk.Logger(ctx).Info().Msg("listener goroutines cleaned up")
 
 	for streamTuple := range s.streamMap.IterBuffered() {
 		eventStream := streamTuple.Val
-		eventStream.Close()
+		if err := eventStream.Close(); err != nil {
+			sdk.Logger(ctx).Err(err).Msg("error closing stream")
+		}
 	}
-
-	sdk.Logger(ctx).Info().Msg("listener goroutines cleaned up")
-
-	close(s.buffer)
+	sdk.Logger(ctx).Info().Msg("closed all streams")
 
 	s.httpClient.CloseIdleConnections()
-	if transport, ok := s.httpClient.Transport.(*http.Transport); ok {
-		transport.CloseIdleConnections()
-		time.Sleep(3000 * time.Millisecond)
-	}
+	sdk.Logger(ctx).Info().Msg("closed httpClient connections")
 
-	sdk.Logger(ctx).Info().Msg("teared down source")
 	return nil
 }
 
@@ -241,9 +268,13 @@ func (s *Source) listenEvents(ctx context.Context) {
 						for _, record := range recs {
 							s.buffer <- record
 						}
+						sdk.Logger(ctx).Trace().Msg("sent all records")
 					}
+				case <-s.tomb.Dying():
+					sdk.Logger(ctx).Debug().Msg("tomb kill called, exiting listener goroutine")
+					return nil
 				case <-ctx.Done():
-					sdk.Logger(ctx).Debug().Msg("context cancelled, exiting listener goroutine")
+					sdk.Logger(ctx).Debug().Msg("context done, exiting listener goroutine")
 					return nil
 				// refresh the subscription after 5 minutes since that is when kinesis subscriptions go stale
 				case <-time.After(time.Minute*4 + time.Second*55):
@@ -265,14 +296,6 @@ func (s *Source) listenEvents(ctx context.Context) {
 }
 
 func (s *Source) subscribeShards(ctx context.Context, position sdk.Position) error {
-	// get shards
-	listShardsResponse, err := s.client.ListShards(ctx, &kinesis.ListShardsInput{
-		StreamARN: &s.config.StreamARN,
-	})
-	if err != nil {
-		return fmt.Errorf("error retrieving kinesis shards: %w", err)
-	}
-
 	var startingPosition types.StartingPosition
 	switch {
 	case position != nil:
@@ -289,6 +312,19 @@ func (s *Source) subscribeShards(ctx context.Context, position sdk.Position) err
 		startingPosition.Type = types.ShardIteratorTypeTrimHorizon
 	}
 
+	logEvt := sdk.Logger(ctx).Info().Str("type", string(startingPosition.Type))
+	if seqNum := startingPosition.SequenceNumber; seqNum != nil {
+		logEvt = logEvt.Str("sequenceNumber", *seqNum)
+	}
+	logEvt.Msg("starting position")
+
+	listShardsResponse, err := s.client.ListShards(ctx, &kinesis.ListShardsInput{
+		StreamARN: &s.config.StreamARN,
+	})
+	if err != nil {
+		return fmt.Errorf("error retrieving kinesis shards: %w", err)
+	}
+
 	// get iterators for shards
 	for _, shard := range listShardsResponse.Shards {
 		subscriptionResponse, err := s.client.SubscribeToShard(ctx, &kinesis.SubscribeToShardInput{
@@ -301,6 +337,7 @@ func (s *Source) subscribeShards(ctx context.Context, position sdk.Position) err
 		}
 
 		s.streamMap.Set(*shard.ShardId, subscriptionResponse.GetStream())
+		sdk.Logger(ctx).Info().Str("shardID", *shard.ShardId).Msg("subscribed to shard")
 	}
 
 	return nil
@@ -319,6 +356,7 @@ func (s *Source) resubscribeShard(ctx context.Context, shardID string) error {
 	}
 
 	s.streamMap.Set(shardID, subscriptionResponse.GetStream())
+	sdk.Logger(ctx).Info().Str("shardID", shardID).Msg("resubscribed to shard")
 	return nil
 }
 
