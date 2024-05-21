@@ -32,11 +32,10 @@ type Source struct {
 	// the teardown method.
 	httpClient *http.Client
 
-	tomb              *tomb.Tomb
-	startedGoroutines bool
-	streamMap         cmap.ConcurrentMap[string, *kinesis.SubscribeToShardEventStream]
-	buffer            chan sdk.Record
-	consumerARN       *string
+	tomb        *tomb.Tomb
+	streamMap   cmap.ConcurrentMap[string, *kinesis.SubscribeToShardEventStream]
+	buffer      chan sdk.Record
+	consumerARN *string
 }
 
 type Shard struct {
@@ -81,7 +80,6 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 	var cfgOptions []func(*config.LoadOptions) error
 
 	cfgOptions = append(cfgOptions, config.WithHTTPClient(s.httpClient))
-
 	cfgOptions = append(cfgOptions, config.WithRegion(s.config.AWSRegion))
 	cfgOptions = append(cfgOptions, config.WithCredentialsProvider(
 		credentials.NewStaticCredentialsProvider(
@@ -145,6 +143,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 		return err
 	}
 
+	// listenEvents will use tomb.Go, so we initialize it here
 	s.tomb = &tomb.Tomb{}
 	go s.listenEvents(ctx)
 
@@ -215,6 +214,7 @@ func (s *Source) Teardown(ctx context.Context) error {
 	}
 
 	if s.tomb != nil {
+		// tomb was setup, there are goroutines ready to be killed
 		s.tomb.Kill(nil)
 		if err := s.tomb.Wait(); err != nil {
 			return fmt.Errorf("error while waiting listener goroutines to cleanup: %w", err)
