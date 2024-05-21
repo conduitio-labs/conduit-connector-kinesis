@@ -28,12 +28,8 @@ func TestAcceptance(t *testing.T) {
 
 	testDriver := sdk.ConfigurableAcceptanceTestDriver{
 		Config: sdk.ConfigurableAcceptanceTestDriverConfig{
-			Connector: Connector,
-			GoleakOptions: []goleak.Option{
-				goleak.IgnoreCurrent(),
-				// goleak.IgnoreAnyFunction("internal/poll.runtime_pollWait"),
-				goleak.IgnoreAnyFunction("net/http.(*persistConn).writeLoop"),
-			},
+			Connector:         Connector,
+			GoleakOptions:     []goleak.Option{goleak.IgnoreCurrent()},
 			SourceConfig:      cfg,
 			DestinationConfig: cfg,
 			GenerateDataType:  sdk.GenerateRawData,
