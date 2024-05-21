@@ -27,6 +27,9 @@ type Source struct {
 	// client is the Client for the AWS Kinesis API
 	client *kinesis.Client
 
+	// httpClient is the http.Client used for interacting with the kinesis API.
+	// We need a custom one so that we can cleanup leaking http connections on
+	// the teardown method.
 	httpClient *http.Client
 
 	tomb        *tomb.Tomb
