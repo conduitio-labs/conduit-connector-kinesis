@@ -57,15 +57,15 @@ func New() sdk.Source {
 }
 
 func (s *Source) Parameters() map[string]sdk.Parameter {
-	return Config{}.Parameters()
+	return s.config.Parameters()
 }
 
 func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
-	sdk.Logger(ctx).Info().Msg("Configuring Source...")
 	err := sdk.Util.ParseConfig(cfg, &s.config)
 	if err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
+	sdk.Logger(ctx).Info().Msg("parsed configuration")
 
 	// Configure the creds for the client
 	var cfgOptions []func(*config.LoadOptions) error
@@ -97,8 +97,10 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load aws config with given credentials : %w", err)
 	}
+	sdk.Logger(ctx).Info().Msg("loaded source aws configuration")
 
 	s.client = kinesis.NewFromConfig(awsCfg)
+	sdk.Logger(ctx).Info().Msg("created kinesis client")
 
 	return nil
 }

@@ -3,6 +3,7 @@ package destination
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -21,23 +22,28 @@ type Destination struct {
 
 	// client is the Client for the AWS Kinesis API
 	client *kinesis.Client
+
+	httpClient *http.Client
 }
 
 func New() sdk.Destination {
-	return sdk.DestinationWithMiddleware(&Destination{},
-		sdk.DefaultDestinationMiddleware()...)
+	httpClient := &http.Client{Transport: &http.Transport{}}
+	return sdk.DestinationWithMiddleware(
+		&Destination{httpClient: httpClient},
+		sdk.DefaultDestinationMiddleware()...,
+	)
 }
 
 func (d *Destination) Parameters() map[string]sdk.Parameter {
-	return Config{}.Parameters()
+	return d.config.Parameters()
 }
 
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
-	sdk.Logger(ctx).Info().Msg("Configuring Destination...")
 	err := sdk.Util.ParseConfig(cfg, &d.config)
 	if err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
+	sdk.Logger(ctx).Info().Msg("parsed destination configuration")
 
 	// Configure the creds for the client
 	var cfgOptions []func(*config.LoadOptions) error
@@ -47,6 +53,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 			d.config.AWSAccessKeyID,
 			d.config.AWSSecretAccessKey,
 			"")))
+	cfgOptions = append(cfgOptions, config.WithHTTPClient(d.httpClient))
 
 	if d.config.AWSURL != "" {
 		cfgOptions = append(cfgOptions, config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(func(_, _ string, _ ...interface{}) (aws.Endpoint, error) {
@@ -66,6 +73,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 	if err != nil {
 		return fmt.Errorf("failed to load aws config with given credentials : %w", err)
 	}
+	sdk.Logger(ctx).Info().Msg("loaded destination aws configuration")
 
 	d.client = kinesis.NewFromConfig(awsCfg)
 
@@ -144,6 +152,6 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {
-	// no shutdown required
+	d.httpClient.CloseIdleConnections()
 	return nil
 }
