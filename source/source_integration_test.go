@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -28,8 +29,9 @@ func TestRead(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
 	con := Source{
-		buffer:    make(chan sdk.Record, 1),
-		streamMap: cmap.New[*kinesis.SubscribeToShardEventStream](),
+		httpClient: &http.Client{Transport: &http.Transport{}},
+		buffer:     make(chan sdk.Record, 1),
+		streamMap:  cmap.New[*kinesis.SubscribeToShardEventStream](),
 	}
 
 	err := con.Configure(ctx, cfg)
@@ -68,43 +70,28 @@ func TestRead(t *testing.T) {
 		recs = append(recs, getRecs.Records...)
 	}
 
-	length := len(recs)
-	fmt.Println(length, "read records using getRecords")
+	t.Logf("%v read records using getRecords", len(recs))
 
 	err = con.Open(ctx, nil)
 	is.NoErr(err)
-
-	fmt.Println("snapshot")
 
 	for i := 0; i < 5; i++ {
 		_, err := con.Read(ctx)
 		is.NoErr(err)
 	}
 
-	fmt.Println("records read")
+	t.Log("records read")
 
-	seqNumber := make(chan string, 1)
+	putRecResp, err := con.client.PutRecord(ctx, &kinesis.PutRecordInput{
+		StreamARN:    &con.config.StreamARN,
+		Data:         []byte("some data here"),
+		PartitionKey: aws.String("5"),
+	})
+	is.NoErr(err)
 
-	// send a new message
-	go func() {
-		fmt.Println("send record async")
-		putRecResp, err := con.client.PutRecord(ctx, &kinesis.PutRecordInput{
-			StreamARN:    &con.config.StreamARN,
-			Data:         []byte("some data here"),
-			PartitionKey: aws.String("5"),
-		})
-		is.NoErr(err)
+	t.Log(putRecResp.ShardId, putRecResp.SequenceNumber)
 
-		fmt.Println(putRecResp.ShardId, putRecResp.SequenceNumber)
-
-		seqNumber <- *putRecResp.SequenceNumber
-	}()
-
-	fmt.Println("block for new message sent")
-	// receive value so we know theres one in the buffer before calling read
-	sequenceNumber := <-seqNumber
-
-	fmt.Println("try read again")
+	sequenceNumber := *putRecResp.SequenceNumber
 
 	var readRec sdk.Record
 	for {
@@ -113,8 +100,6 @@ func TestRead(t *testing.T) {
 			continue
 		}
 
-		fmt.Println("read record")
-
 		is.NoErr(err)
 		readRec = rec
 
@@ -122,8 +107,6 @@ func TestRead(t *testing.T) {
 	}
 
 	is.Equal("kinesis-"+sequenceNumber, readRec.Metadata["sequenceNumber"])
-
-	fmt.Println("cdc")
 
 	// expect message to be read from subscription before timeout
 	for {
