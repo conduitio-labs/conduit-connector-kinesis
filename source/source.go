@@ -135,7 +135,9 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 		Str("consumerName", *consumerResponse.Consumer.ConsumerName).
 		Msg("kinesis consumer registered")
 
-	s.waitForConsumer(ctx, consumerResponse.Consumer)
+	if err := s.waitForConsumer(ctx, consumerResponse.Consumer); err != nil {
+		return fmt.Errorf("error waiting for consumer: %w", err)
+	}
 
 	s.consumerARN = consumerResponse.Consumer.ConsumerARN
 	err = s.subscribeShards(ctx, pos)

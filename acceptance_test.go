@@ -62,7 +62,10 @@ func TestAcceptance(t *testing.T) {
 	sdk.AcceptanceTest(t, testDriver)
 }
 
-func TestNewRandomStream(t *testing.T) {
+func TestNewRandomStreamDoesntLeak(t *testing.T) {
+	// While testing a test function seems redundant, it is useful here to
+	// discard goroutine leak origins.
+
 	defer goleak.VerifyNone(t)
 	cfg := map[string]string{
 		"aws.region":          "us-east-1",
@@ -105,6 +108,10 @@ func setRandomStreamARNToCfg(t *testing.T, cfg map[string]string) {
 	streamName := "acceptance_" + uuid.NewString()[0:8]
 	client := kinesis.NewFromConfig(awsCfg)
 
+	// Acceptance tests are susceptible to wrong record order. By default
+	// kinesis writes to multiple shards, making difficult debugging whether the
+	// read order of records is bad because of bad implementation or randomness.
+	// Forcing the shard count to 1 simplifies the issue.
 	var count int32 = 1
 	_, err = client.CreateStream(ctx, &kinesis.CreateStreamInput{
 		StreamName: &streamName,
