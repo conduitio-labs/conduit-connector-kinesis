@@ -86,7 +86,6 @@ func setRandomStreamARNToCfg(t *testing.T, cfg map[string]string) {
 
 	httpClient := &http.Client{}
 	defer httpClient.CloseIdleConnections()
-	httpClientOpt := config.WithHTTPClient(httpClient)
 
 	awsCfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(cfg["aws.region"]),
@@ -103,7 +102,7 @@ func setRandomStreamARNToCfg(t *testing.T, cfg map[string]string) {
 				HostnameImmutable: true,
 			}, nil
 		})),
-		httpClientOpt,
+		config.WithHTTPClient(httpClient),
 	)
 	is.NoErr(err)
 

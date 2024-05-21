@@ -92,6 +92,8 @@ func (d *Destination) Open(ctx context.Context) error {
 		return fmt.Errorf("error when attempting to test connection to stream: %w", err)
 	}
 
+	sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+
 	return nil
 }
 

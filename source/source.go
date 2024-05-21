@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,10 +33,11 @@ type Source struct {
 	// the teardown method.
 	httpClient *http.Client
 
-	tomb        *tomb.Tomb
-	streamMap   cmap.ConcurrentMap[string, *kinesis.SubscribeToShardEventStream]
-	buffer      chan sdk.Record
-	consumerARN *string
+	tomb              *Tomb
+	startedGoroutines bool
+	streamMap         cmap.ConcurrentMap[string, *kinesis.SubscribeToShardEventStream]
+	buffer            chan sdk.Record
+	consumerARN       *string
 }
 
 type Shard struct {
@@ -53,7 +55,7 @@ func New() sdk.Source {
 		httpClient: &http.Client{
 			Transport: &http.Transport{},
 		},
-		tomb:      &tomb.Tomb{},
+		tomb:      NewTomb(),
 		buffer:    make(chan sdk.Record, 100),
 		streamMap: cmap.New[*kinesis.SubscribeToShardEventStream](),
 	}, sdk.DefaultSourceMiddleware()...)
@@ -139,6 +141,8 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 	}
 
 	go s.listenEvents(ctx)
+
+	sdk.Logger(ctx).Info().Msg("source ready to be read from")
 
 	return nil
 }
@@ -373,4 +377,32 @@ func parsePosition(pos sdk.Position) (kinesisPosition, error) {
 	}
 
 	return kinPos, nil
+}
+
+type Tomb struct {
+	tomb.Tomb
+	mx                *sync.Mutex
+	startedGoroutines bool
+}
+
+func NewTomb() *Tomb {
+	return &Tomb{
+		Tomb:              tomb.Tomb{},
+		mx:                &sync.Mutex{},
+		startedGoroutines: false,
+	}
+}
+
+func (t *Tomb) Go(f func() error) {
+	t.mx.Lock()
+	defer t.mx.Unlock()
+	t.Tomb.Go(f)
+	t.startedGoroutines = true
+}
+
+func (t *Tomb) Wait() error {
+	if t.startedGoroutines {
+		return t.Tomb.Wait()
+	}
+	return nil
 }
