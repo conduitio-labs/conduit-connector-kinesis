@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -33,7 +32,7 @@ type Source struct {
 	// the teardown method.
 	httpClient *http.Client
 
-	tomb              *Tomb
+	tomb              *tomb.Tomb
 	startedGoroutines bool
 	streamMap         cmap.ConcurrentMap[string, *kinesis.SubscribeToShardEventStream]
 	buffer            chan sdk.Record
@@ -55,7 +54,13 @@ func New() sdk.Source {
 		httpClient: &http.Client{
 			Transport: &http.Transport{},
 		},
-		tomb:      NewTomb(),
+		// If tomb.Tomb.Wait() is called and no goroutines are started from it it will deadlock.
+		// This can happen if the source connector has Configure() and then Teardown() methods called.
+		// We could wrap tomb in another struct and track there in a boolean and a mutex whether
+		// a tomb goroutine was started up, but in this narrow case it is simpler to initialize
+		// tomb to nil, start it up on Open(), and check whether tomb is nil or not in Teardown()
+		// to prevent the deadlock.
+		tomb:      nil,
 		buffer:    make(chan sdk.Record, 100),
 		streamMap: cmap.New[*kinesis.SubscribeToShardEventStream](),
 	}, sdk.DefaultSourceMiddleware()...)
@@ -140,6 +145,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 		return err
 	}
 
+	s.tomb = &tomb.Tomb{}
 	go s.listenEvents(ctx)
 
 	sdk.Logger(ctx).Info().Msg("source ready to be read from")
@@ -208,11 +214,13 @@ func (s *Source) Teardown(ctx context.Context) error {
 		sdk.Logger(ctx).Info().Str("consumerARN", *s.consumerARN).Msg("deregistered stream consumer")
 	}
 
-	s.tomb.Kill(nil)
-	if err := s.tomb.Wait(); err != nil {
-		return fmt.Errorf("error while waiting listener goroutines to cleanup: %w", err)
+	if s.tomb != nil {
+		s.tomb.Kill(nil)
+		if err := s.tomb.Wait(); err != nil {
+			return fmt.Errorf("error while waiting listener goroutines to cleanup: %w", err)
+		}
+		sdk.Logger(ctx).Info().Msg("listener goroutines cleaned up")
 	}
-	sdk.Logger(ctx).Info().Msg("listener goroutines cleaned up")
 
 	for streamTuple := range s.streamMap.IterBuffered() {
 		eventStream := streamTuple.Val
@@ -377,32 +385,4 @@ func parsePosition(pos sdk.Position) (kinesisPosition, error) {
 	}
 
 	return kinPos, nil
-}
-
-type Tomb struct {
-	tomb.Tomb
-	mx                *sync.Mutex
-	startedGoroutines bool
-}
-
-func NewTomb() *Tomb {
-	return &Tomb{
-		Tomb:              tomb.Tomb{},
-		mx:                &sync.Mutex{},
-		startedGoroutines: false,
-	}
-}
-
-func (t *Tomb) Go(f func() error) {
-	t.mx.Lock()
-	defer t.mx.Unlock()
-	t.Tomb.Go(f)
-	t.startedGoroutines = true
-}
-
-func (t *Tomb) Wait() error {
-	if t.startedGoroutines {
-		return t.Tomb.Wait()
-	}
-	return nil
 }
