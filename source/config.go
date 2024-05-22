@@ -14,7 +14,7 @@
 
 package source
 
-import "github.com/mer-oscar/conduit-connector-kinesis/common"
+import "github.com/conduitio-labs/conduit-connector-kinesis/common"
 
 //go:generate paramgen -output=config_paramgen.go Config
 type Config struct {

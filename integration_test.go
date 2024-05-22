@@ -18,9 +18,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/conduitio-labs/conduit-connector-kinesis/destination"
+	"github.com/conduitio-labs/conduit-connector-kinesis/source"
 	"github.com/matryer/is"
-	"github.com/mer-oscar/conduit-connector-kinesis/destination"
-	"github.com/mer-oscar/conduit-connector-kinesis/source"
 	"go.uber.org/goleak"
 )
 

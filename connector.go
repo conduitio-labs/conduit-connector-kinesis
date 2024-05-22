@@ -15,9 +15,9 @@
 package kinesis
 
 import (
+	"github.com/conduitio-labs/conduit-connector-kinesis/destination"
+	"github.com/conduitio-labs/conduit-connector-kinesis/source"
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	"github.com/mer-oscar/conduit-connector-kinesis/destination"
-	"github.com/mer-oscar/conduit-connector-kinesis/source"
 )
 
 // Connector combines all constructors for each plugin in one struct.

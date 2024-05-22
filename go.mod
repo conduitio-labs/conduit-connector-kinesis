@@ -1,4 +1,4 @@
-module github.com/mer-oscar/conduit-connector-kinesis
+module github.com/conduitio-labs/conduit-connector-kinesis
 
 go 1.21.1
 

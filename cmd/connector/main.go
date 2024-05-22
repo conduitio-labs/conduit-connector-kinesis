@@ -15,8 +15,8 @@
 package main
 
 import (
+	kinesis "github.com/conduitio-labs/conduit-connector-kinesis"
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	kinesis "github.com/mer-oscar/conduit-connector-kinesis"
 )
 
 func main() {
