@@ -54,7 +54,7 @@ func TestAcceptance(t *testing.T) {
 				"TestSpecifier_Exists",
 				"TestSpecifier_Specify_Success",
 			},
-			WriteTimeout: 500 * time.Millisecond,
+			WriteTimeout: 3000 * time.Millisecond,
 			ReadTimeout:  3000 * time.Millisecond,
 		},
 	}

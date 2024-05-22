@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -67,7 +68,10 @@ func TestTeardown_Open(t *testing.T) {
 	is := is.New(t)
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	ctx := logger.WithContext(context.Background())
-	con := Destination{}
+	con := Destination{
+		client:     &kinesis.Client{},
+		httpClient: &http.Client{},
+	}
 
 	err := con.Configure(ctx, cfg)
 	is.NoErr(err)
@@ -86,7 +90,10 @@ func TestWrite_PutRecords(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	ctx := logger.WithContext(context.Background())
 	is := is.New(t)
-	con := Destination{}
+	con := Destination{
+		client:     &kinesis.Client{},
+		httpClient: &http.Client{},
+	}
 
 	err := con.Configure(ctx, cfg)
 	is.NoErr(err)
@@ -161,7 +168,10 @@ func TestWrite_PutRecord(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	ctx := logger.WithContext(context.Background())
 	is := is.New(t)
-	con := Destination{}
+	con := Destination{
+		client:     &kinesis.Client{},
+		httpClient: &http.Client{},
+	}
 
 	cfg["use_single_shard"] = "true"
 
