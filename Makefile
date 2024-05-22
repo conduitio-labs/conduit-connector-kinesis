@@ -8,9 +8,7 @@ build:
 test:
 	go test $(GOTEST_FLAGS) -race ./...
 
-test-integration:
-	# run required docker containers, execute integration tests, stop containers after tests
-	docker compose -f test/docker-compose.yml up -d
+test-integration: up
 	go test $(GOTEST_FLAGS) -v -race ./...; ret=$$?; \
 		docker compose -f test/docker-compose.yml down; \
 		exit $$ret
@@ -31,7 +29,7 @@ lint:
 
 
 up:
-	docker compose -f test/docker-compose.yml up -d
+	docker compose -f test/docker-compose.yml up --quiet-pull -d --wait 
 
 down:
 	docker compose -f test/docker-compose.yml down -v
