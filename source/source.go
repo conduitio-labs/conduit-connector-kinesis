@@ -275,7 +275,7 @@ func (s *Source) listenEvents(ctx context.Context) {
 					if event == nil {
 						err := s.resubscribeShard(ctx, shardID)
 						if err != nil {
-							return fmt.Errorf("error resubscribing to shard: %w", err)
+							return fmt.Errorf("error resubscribing to shard %s: %w", shardID, err)
 						}
 					}
 
@@ -305,7 +305,7 @@ func (s *Source) listenEvents(ctx context.Context) {
 
 						err := s.resubscribeShard(ctx, shardID)
 						if err != nil {
-							return fmt.Errorf("error resubscribing to shard: %w", err)
+							return fmt.Errorf("error resubscribing to shard %s: %w", shardID, err)
 						}
 					}
 				}
