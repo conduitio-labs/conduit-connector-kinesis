@@ -1,3 +1,17 @@
+// Copyright © 2024 Meroxa, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package destination
 
 import (
@@ -108,7 +122,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 				StreamARN:    &d.config.StreamARN,
 			})
 			if err != nil {
-				return count, err
+				return count, fmt.Errorf("failed to put record into partition %s: %w", partition, err)
 			}
 
 			count++
@@ -117,7 +131,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 		return count, nil
 	}
 
-	var entries []types.PutRecordsRequestEntry
+	entries := make([]types.PutRecordsRequestEntry, 0, len(records))
 
 	// create the put records request
 	for _, rec := range records {
@@ -142,7 +156,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 	var written int
 	output, err := d.client.PutRecords(ctx, req)
 	if err != nil {
-		return written, err
+		return written, fmt.Errorf("failed to put %v records into %s: %w", len(req.Records), *req.StreamName, err)
 	}
 
 	for _, rec := range output.Records {
@@ -158,5 +172,6 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 
 func (d *Destination) Teardown(ctx context.Context) error {
 	d.httpClient.CloseIdleConnections()
+	sdk.Logger(ctx).Info().Msg("closed all httpClient unused connections")
 	return nil
 }

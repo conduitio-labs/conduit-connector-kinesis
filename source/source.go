@@ -1,3 +1,17 @@
+// Copyright © 2024 Meroxa, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package source
 
 import (
@@ -44,8 +58,8 @@ type Shard struct {
 }
 
 type kinesisPosition struct {
-	SequenceNumber string
-	ShardID        string
+	SequenceNumber string `json:"sequenceNumber"`
+	ShardID        string `json:"shardId"`
 }
 
 func New() sdk.Source {
@@ -53,7 +67,7 @@ func New() sdk.Source {
 		httpClient: &http.Client{
 			Transport: &http.Transport{},
 		},
-		// If tomb.Tomb.Wait() is called and no goroutines are started from it it will deadlock.
+		// If tomb.Wait() is called and no goroutines are started from it, the tomb will cause a deadlock.
 		// This can happen if the source connector has Configure() and then Teardown() methods called.
 		// We could wrap tomb in another struct and track there in a boolean and a mutex whether
 		// a tomb goroutine was started up, but in this narrow case it is simpler to initialize
@@ -119,8 +133,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 		StreamARN: &s.config.StreamARN,
 	})
 	if err != nil {
-		sdk.Logger(ctx).Err(err).Msg("error when attempting to test connection to stream")
-		return err
+		return fmt.Errorf("failed to test connection to stream: %w", err)
 	}
 	sdk.Logger(ctx).Info().Str("streamARN", s.config.StreamARN).Msg("stream valid")
 
@@ -170,7 +183,7 @@ func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) 
 			StreamARN:    &s.config.StreamARN,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to describe stream consumer: %w", err)
 		}
 		if describedConsumer.ConsumerDescription.ConsumerStatus == types.ConsumerStatusActive {
 			return nil
@@ -180,10 +193,14 @@ func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) 
 	return fmt.Errorf("consumer wait timed out")
 }
 
-func (s *Source) Read(ctx context.Context) (sdk.Record, error) {
+func (s *Source) Read(ctx context.Context) (rec sdk.Record, err error) {
 	select {
 	case <-ctx.Done():
-		return sdk.Record{}, ctx.Err()
+		if err := ctx.Err(); err != nil {
+			return rec, fmt.Errorf("source read context is done: %w", err)
+		}
+
+		return rec, nil
 	case rec := <-s.buffer:
 		return rec, nil
 	}
@@ -239,7 +256,7 @@ func (s *Source) Teardown(ctx context.Context) error {
 }
 
 func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
-	var sdkRecs []sdk.Record
+	sdkRecs := make([]sdk.Record, 0, len(kinRecords))
 
 	for _, rec := range kinRecords {
 		kinPos := kinesisPosition{
@@ -247,7 +264,12 @@ func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
 			ShardID:        shardID,
 		}
 
-		kinPosBytes, _ := json.Marshal(kinPos)
+		kinPosBytes, err := json.Marshal(kinPos)
+		if err != nil {
+			// should never happen
+			panic("failed to marshal position")
+		}
+
 		sdkRec := sdk.Util.Source.NewRecordCreate(
 			sdk.Position(kinPosBytes),
 			sdk.Metadata{
@@ -279,7 +301,12 @@ func (s *Source) listenEvents(ctx context.Context) {
 						}
 					}
 
-					eventValue := event.(*types.SubscribeToShardEventStreamMemberSubscribeToShardEvent).Value
+					subsEvent, ok := event.(*types.SubscribeToShardEventStreamMemberSubscribeToShardEvent)
+					if !ok {
+						return fmt.Errorf("invalid received event, got %v", event)
+					}
+
+					eventValue := subsEvent.Value
 
 					if len(eventValue.Records) > 0 {
 						recs := toRecords(eventValue.Records, shardID)
@@ -383,7 +410,7 @@ func parsePosition(pos sdk.Position) (kinesisPosition, error) {
 	var kinPos kinesisPosition
 	err := json.Unmarshal(pos, &kinPos)
 	if err != nil {
-		return kinPos, err
+		return kinPos, fmt.Errorf("failed to parse sdk position: %w", err)
 	}
 
 	return kinPos, nil

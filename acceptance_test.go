@@ -1,3 +1,17 @@
+// Copyright © 2024 Meroxa, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package kinesis
 
 import (
@@ -11,11 +25,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
-	"github.com/google/uuid"
-	"go.uber.org/goleak"
-
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	"github.com/google/uuid"
 	"github.com/matryer/is"
+	"go.uber.org/goleak"
 )
 
 func TestAcceptance(t *testing.T) {
@@ -39,20 +52,6 @@ func TestAcceptance(t *testing.T) {
 			Skip: []string{
 				"TestDestination_Configure_RequiredParams",
 				"TestSource_Configure_RequiredParams",
-
-				"TestDestination_Configure_Success",
-				"TestDestination_Parameters_Success",
-				// "TestDestination_Write_Success",
-				"TestSource_Configure_Success",
-
-				"TestSource_Open_ResumeAtPositionCDC",
-
-				"TestSource_Open_ResumeAtPositionSnapshot",
-				"TestSource_Parameters_Success",
-				"TestSource_Read_Success",
-				"TestSource_Read_Timeout",
-				"TestSpecifier_Exists",
-				"TestSpecifier_Specify_Success",
 			},
 			WriteTimeout: 3000 * time.Millisecond,
 			ReadTimeout:  3000 * time.Millisecond,

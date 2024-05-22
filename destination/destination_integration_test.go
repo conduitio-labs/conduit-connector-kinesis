@@ -1,3 +1,17 @@
+// Copyright © 2024 Meroxa, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package destination
 
 import (
@@ -19,7 +33,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-var cfg map[string]string = map[string]string{
+var cfg = map[string]string{
 	"useSingleShard":      "false",
 	"streamARN":           "arn:aws:kinesis:us-east-1:000000000000:stream/stream1",
 	"aws.region":          "us-east-1",
@@ -58,9 +72,8 @@ func cleanupTest(ctx context.Context, client *kinesis.Client, streamARN string) 
 		EnforceConsumerDeletion: aws.Bool(true),
 		StreamARN:               &streamARN,
 	})
-
 	if err != nil {
-		sdk.Logger(ctx).Err(err)
+		sdk.Logger(ctx).Err(err).Send()
 	}
 }
 
@@ -115,7 +128,7 @@ func TestWrite_PutRecords(t *testing.T) {
 	// setup table test
 	for _, tt := range cases {
 		recs := tt.records
-		t.Run(tt.testName, func(t *testing.T) {
+		t.Run(tt.testName, func(_ *testing.T) {
 			var err error
 			if tt.expectedError != nil {
 				// handle err
@@ -196,7 +209,7 @@ func TestWrite_PutRecord(t *testing.T) {
 
 	// setup table test
 	for _, tt := range cases {
-		t.Run(tt.testName, func(t *testing.T) {
+		t.Run(tt.testName, func(_ *testing.T) {
 			count, err := con.Write(ctx, tt.records)
 			if err != nil {
 				// handle err
