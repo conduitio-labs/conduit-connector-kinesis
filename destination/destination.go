@@ -116,7 +116,7 @@ func (d *Destination) createPutRequestInput(records []sdk.Record) *kinesis.PutRe
 	for _, rec := range records {
 		partitionKey := d.config.PartitionKey
 		if partitionKey == "" {
-			partitionKey := string(rec.Key.Bytes())
+			partitionKey = string(rec.Key.Bytes())
 			if len(partitionKey) > 256 {
 				partitionKey = partitionKey[:256]
 			}
