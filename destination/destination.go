@@ -26,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	"github.com/google/uuid"
 )
 
 type Destination struct {
@@ -111,47 +110,34 @@ func (d *Destination) Open(ctx context.Context) error {
 	return nil
 }
 
-func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	if d.config.UseSingleShard {
-		partition := uuid.New().String()
-		var count int
-		for _, rec := range records {
-			_, err := d.client.PutRecord(ctx, &kinesis.PutRecordInput{
-				PartitionKey: &partition,
-				Data:         rec.Bytes(),
-				StreamARN:    &d.config.StreamARN,
-			})
-			if err != nil {
-				return count, fmt.Errorf("failed to put record into partition %s: %w", partition, err)
-			}
-
-			count++
-		}
-
-		return count, nil
-	}
-
+func (d *Destination) createPutRequestInput(records []sdk.Record) *kinesis.PutRecordsInput {
 	entries := make([]types.PutRecordsRequestEntry, 0, len(records))
 
-	// create the put records request
 	for _, rec := range records {
-		pKey := string(rec.Key.Bytes())
-		if len(pKey) > 256 {
-			pKey = pKey[:256]
+		partitionKey := d.config.PartitionKey
+		if partitionKey == "" {
+			partitionKey := string(rec.Key.Bytes())
+			if len(partitionKey) > 256 {
+				partitionKey = partitionKey[:256]
+			}
 		}
 
 		recordEntry := types.PutRecordsRequestEntry{
 			Data:         rec.Bytes(),
-			PartitionKey: &pKey,
+			PartitionKey: &partitionKey,
 		}
 		entries = append(entries, recordEntry)
 	}
 
-	req := &kinesis.PutRecordsInput{
+	return &kinesis.PutRecordsInput{
 		StreamARN:  &d.config.StreamARN,
 		StreamName: &d.config.StreamName,
 		Records:    entries,
 	}
+}
+
+func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
+	req := d.createPutRequestInput(records)
 
 	var written int
 	output, err := d.client.PutRecords(ctx, req)

@@ -28,7 +28,7 @@ the subscription is up to date (all present source records read), at which point
 
 
 ## Destination
-The Destination connector for AWS Kinesis writes records to the stream either to a single shard or to multiple shards through the `useSingleShard` boolean configuration parameter. The size limit for a single record is 1MB, attempting to write a single record's data which is greater than 1MB will result in an error.
+The Destination connector for AWS Kinesis writes records to the stream either to a single shard or to multiple shards through `partitionKey`. The size limit for a single record is 1MB, attempting to write a single record's data which is greater than 1MB will result in an error.
 
 ### Configuration
 

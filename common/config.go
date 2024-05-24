@@ -15,9 +15,9 @@
 package common
 
 type Config struct {
-	// amazon access key id
+	// AWSAccessKeyID is the amazon access key id
 	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
-	// amazon secret access key
+	// AWSSecretAccessKey is the amazon secret access key
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
 	// AWSRegion is the region where the stream is hosted
 	AWSRegion string `json:"aws.region" validate:"required"`
@@ -26,6 +26,6 @@ type Config struct {
 	// StreamName is the name of the Kinesis Data Stream
 	StreamName string `json:"streamName"`
 
-	// URL for endpoint override - testing/dry-run only
+	// AWSURL is the URL for endpoint override - testing/dry-run only
 	AWSURL string `json:"aws.url"`
 }
