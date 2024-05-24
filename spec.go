@@ -29,6 +29,6 @@ func Specification() sdk.Specification {
 		Summary:     "A Conduit Connector for AWS Kinesis Data Streaming",
 		Description: "A source and destination connector for AWS Kinesis Data Streaming",
 		Version:     version,
-		Author:      "Oscar Villavicencio",
+		Author:      "Meroxa, Inc.",
 	}
 }
