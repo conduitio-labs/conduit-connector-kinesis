@@ -186,8 +186,6 @@ func TestWrite_PutRecord(t *testing.T) {
 		httpClient: &http.Client{},
 	}
 
-	cfg["use_single_shard"] = "true"
-
 	err := con.Configure(ctx, cfg)
 	is.NoErr(err)
 
