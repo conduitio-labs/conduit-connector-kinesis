@@ -10,7 +10,7 @@ test:
 
 test-integration: up
 	go test $(GOTEST_FLAGS) -v -race ./...; ret=$$?; \
-		docker compose -f test/docker-compose.yml down; \
+		docker compose -f test/docker-compose.yml down -v; \
 		exit $$ret
 
 generate:
