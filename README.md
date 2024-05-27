@@ -21,9 +21,9 @@ the subscription is up to date (all present source records read), at which point
 | `aws.accessKeyId`     | Access Key ID associated with your AWS resources | true     | ""            |
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
+| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
 | `streamName`     | The AWS Kinesis stream name | false     | ""            |
 | `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
-| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
 | `startFromLatest`     | Set this value to true to ignore any records already in the stream  | false     | false           |
 
 
@@ -37,9 +37,11 @@ The Destination connector for AWS Kinesis writes records to the stream either to
 | `aws.accessKeyId`     | Access Key ID associated with your AWS resources | true     | ""            |
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
+| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
 | `streamName`     | The AWS Kinesis stream name | false     | ""            |
 | `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
-| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
+| `partitionKey` | The AWS Kinesis partition key. Use this to group records into one or multiple shards | false     | ""            |
+
 
 ## Known Issues & Limitations
 

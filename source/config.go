@@ -24,5 +24,5 @@ type Config struct {
 	// LATEST (iterates from the point that the connection begins = CDC). when false, sets the iterator type
 	// to TRIM_HORIZON (iterates from the oldest record in the shard = snapshot). Iterators eventually
 	// shift to latest after snapshot has been written
-	StartFromLatest bool `json:"startFromLatest" default:"false"`
+	StartFromLatest bool `json:"startFromLatest"`
 }
