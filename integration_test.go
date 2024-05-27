@@ -25,6 +25,9 @@ import (
 )
 
 func TestConnectorCleanup(t *testing.T) {
+	// We make sure here that both the source and destination connectors don't leak
+	// any resources when opened and closed down. It is easier this way to detect
+	// possible goroutine leaks
 	defer goleak.VerifyNone(t)
 
 	is := is.New(t)

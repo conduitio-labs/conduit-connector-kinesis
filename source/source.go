@@ -168,6 +168,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 }
 
 func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) error {
+	var lastStatus types.ConsumerStatus
 	for count := 1; count <= 5; count++ {
 		secsToWait := math.Exp2(float64(count))
 		sdk.Logger(ctx).Info().
@@ -185,12 +186,14 @@ func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) 
 		if err != nil {
 			return fmt.Errorf("failed to describe stream consumer: %w", err)
 		}
-		if describedConsumer.ConsumerDescription.ConsumerStatus == types.ConsumerStatusActive {
+
+		lastStatus = describedConsumer.ConsumerDescription.ConsumerStatus
+		if lastStatus == types.ConsumerStatusActive {
 			return nil
 		}
 	}
 
-	return fmt.Errorf("consumer wait timed out")
+	return fmt.Errorf("consumer wait timed out with status %s", lastStatus)
 }
 
 func (s *Source) Read(ctx context.Context) (rec sdk.Record, err error) {
@@ -206,13 +209,8 @@ func (s *Source) Read(ctx context.Context) (rec sdk.Record, err error) {
 	}
 }
 
-func (s *Source) Ack(ctx context.Context, position sdk.Position) error {
-	pos, err := parsePosition(position)
-	if err != nil {
-		return err
-	}
-
-	sdk.Logger(ctx).Debug().Msg(fmt.Sprintf("ack'd record with shardID: %s and sequence number: %s", pos.ShardID, pos.SequenceNumber))
+func (s *Source) Ack(_ context.Context, _ sdk.Position) error {
+	// kinesis doesn't have any acking system, so we do nothing here.
 	return nil
 }
 
@@ -287,6 +285,10 @@ func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
 }
 
 func (s *Source) listenEvents(ctx context.Context) {
+	if s.tomb == nil {
+		panic("source tomb.Tomb was not assigned")
+	}
+
 	for streamTuple := range s.streamMap.IterBuffered() {
 		shardID, eventStream := streamTuple.Key, streamTuple.Val
 

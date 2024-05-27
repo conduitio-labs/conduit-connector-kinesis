@@ -34,7 +34,6 @@ import (
 )
 
 var cfg = map[string]string{
-	"useSingleShard":      "false",
 	"streamARN":           "arn:aws:kinesis:us-east-1:000000000000:stream/stream1",
 	"aws.region":          "us-east-1",
 	"aws.accessKeyId":     "accesskeymock",
