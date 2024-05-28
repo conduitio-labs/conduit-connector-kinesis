@@ -160,7 +160,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 
 	// listenEvents will use tomb.Go, so we initialize it here
 	s.tomb = &tomb.Tomb{}
-	go s.listenEvents(ctx)
+	s.listenEvents(ctx)
 
 	sdk.Logger(ctx).Info().Msg("source ready to be read from")
 
@@ -169,14 +169,6 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 
 func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) error {
 	for count := 1; count <= 5; count++ {
-		secsToWait := math.Exp2(float64(count))
-		sdk.Logger(ctx).Info().
-			Str("consumerARN", *consumer.ConsumerARN).
-			Float64("seconds", secsToWait).
-			Msg("waiting for consumer to be ready")
-
-		time.Sleep(time.Duration(secsToWait) * time.Second)
-
 		describedConsumer, err := s.client.DescribeStreamConsumer(ctx, &kinesis.DescribeStreamConsumerInput{
 			ConsumerARN:  consumer.ConsumerARN,
 			ConsumerName: consumer.ConsumerName,
@@ -188,6 +180,20 @@ func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) 
 		if describedConsumer.ConsumerDescription.ConsumerStatus == types.ConsumerStatusActive {
 			return nil
 		}
+
+		secsToWait := math.Exp2(float64(count))
+		sdk.Logger(ctx).Info().
+			Str("consumerARN", *consumer.ConsumerARN).
+			Float64("seconds", secsToWait).
+			Msg("waiting for consumer to be ready")
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("context timeout while trying for consumer to be ready")
+		case <-time.After(time.Duration(secsToWait) * time.Second):
+			// retry status check
+		}
+
 	}
 
 	return fmt.Errorf("consumer wait timed out")
