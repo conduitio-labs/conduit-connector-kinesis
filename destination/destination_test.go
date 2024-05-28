@@ -75,11 +75,12 @@ func TestPartitionKey(t *testing.T) {
 	t.Run("with partition key template defined", func(t *testing.T) {
 		ctx := context.Background()
 		is := is.New(t)
-		d := Destination{
-			config: Config{
-				PartitionKeyTemplate: `{{ printf "%s" .Position }}`,
-			},
-		}
+		d := Destination{}
+		err := d.Configure(ctx, map[string]string{
+			"partitionKeyTemplate": `{{ printf "%s" .Position }}`,
+		})
+		is.NoErr(err)
+
 		expectedPartitionKey := sdk.Position("test-position")
 
 		partitionKey, err := d.partitionKey(ctx, sdk.Record{

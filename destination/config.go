@@ -21,8 +21,10 @@ type Config struct {
 	// Config includes parameters that are the same in the source and destination.
 	common.Config
 
-	// PartitionKeyTemplate consists of a go template, with the record being written
-	// as the main context. If empty by default the partition key will adopt the record
-	// key value.
+	// PartitionKeyTemplate accepts a go template as an argument, with the
+	// record being written as the main data context. If an empty template is
+	// passed, the partition key will adopt the record key string value. If the
+	// record key string exceeds 256 it will be trimmed down from start to fit
+	// the partition key size
 	PartitionKeyTemplate string `json:"partitionKeyTemplate"`
 }
