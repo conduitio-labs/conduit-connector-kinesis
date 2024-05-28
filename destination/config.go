@@ -21,7 +21,8 @@ type Config struct {
 	// Config includes parameters that are the same in the source and destination.
 	common.Config
 
-	// PartitionKey represents the kinesis partition key. Use this to group
-	// records into one or multiple shards.
-	PartitionKey string `json:"partitionKey"`
+	// PartitionKeyTemplate consists of a go template, with the record being written
+	// as the main context. If empty by default the partition key will adopt the record
+	// key value.
+	PartitionKeyTemplate string `json:"partitionKeyTemplate"`
 }

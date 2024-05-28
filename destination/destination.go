@@ -17,8 +17,10 @@ package destination
 import (
 	"context"
 	"fmt"
+	"html/template"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -110,11 +112,36 @@ func (d *Destination) Open(ctx context.Context) error {
 	return nil
 }
 
+func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string, error) {
+	if d.config.PartitionKeyTemplate == "" {
+		partitionKey := string(rec.Key.Bytes())
+		if len(partitionKey) > 256 {
+			partitionKey = partitionKey[:256]
+			sdk.Logger(ctx).Warn().
+				Msg("using a record key greater than 256 characters as a partition key; trimming it down")
+		}
+
+		return partitionKey, nil
+	}
+
+	t, err := template.New("partitionKey").Parse(d.config.PartitionKeyTemplate)
+	if err != nil {
+		return "", err
+	}
+
+	var sb strings.Builder
+	if err := t.Execute(&sb, rec); err != nil {
+		return "", fmt.Errorf("failed to write record: %w", err)
+	}
+
+	return sb.String(), nil
+}
+
 func (d *Destination) createPutRequestInput(records []sdk.Record) *kinesis.PutRecordsInput {
 	entries := make([]types.PutRecordsRequestEntry, 0, len(records))
 
 	for _, rec := range records {
-		partitionKey := d.config.PartitionKey
+		partitionKey := d.config.PartitionKeyTemplate
 		if partitionKey == "" {
 			partitionKey = string(rec.Key.Bytes())
 			if len(partitionKey) > 256 {

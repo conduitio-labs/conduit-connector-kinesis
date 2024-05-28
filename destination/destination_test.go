@@ -15,6 +15,7 @@
 package destination
 
 import (
+	"context"
 	"testing"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
@@ -44,7 +45,7 @@ func TestCreatePutRequestInput(t *testing.T) {
 	records := []sdk.Record{record1, record2, record3, record4}
 
 	{
-		dest := Destination{config: Config{PartitionKey: "partitionKey"}}
+		dest := Destination{config: Config{PartitionKeyTemplate: "partitionKey"}}
 
 		request := dest.createPutRequestInput(records)
 
@@ -68,4 +69,36 @@ func TestCreatePutRequestInput(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestPartitionKey(t *testing.T) {
+	t.Run("with partition key template defined", func(t *testing.T) {
+		ctx := context.Background()
+		is := is.New(t)
+		d := Destination{
+			config: Config{
+				PartitionKeyTemplate: `{{ printf "%s" .Position }}`,
+			},
+		}
+		expectedPartitionKey := sdk.Position("test-position")
+
+		partitionKey, err := d.partitionKey(ctx, sdk.Record{
+			Position: expectedPartitionKey,
+		})
+		is.NoErr(err)
+		is.Equal(partitionKey, string(expectedPartitionKey))
+	})
+
+	t.Run("with no partition key template defined", func(t *testing.T) {
+		ctx := context.Background()
+		is := is.New(t)
+		d := Destination{}
+		expectedPartitionKey := sdk.RawData("test-position")
+
+		partitionKey, err := d.partitionKey(ctx, sdk.Record{
+			Key: expectedPartitionKey,
+		})
+		is.NoErr(err)
+		is.Equal(partitionKey, string(expectedPartitionKey))
+	})
 }
