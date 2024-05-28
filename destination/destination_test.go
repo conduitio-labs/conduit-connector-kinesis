@@ -24,6 +24,7 @@ import (
 
 func TestCreatePutRequestInput(t *testing.T) {
 	is := is.New(t)
+	ctx := context.Background()
 
 	testDriver := sdk.ConfigurableAcceptanceTestDriver{}
 
@@ -45,9 +46,12 @@ func TestCreatePutRequestInput(t *testing.T) {
 	records := []sdk.Record{record1, record2, record3, record4}
 
 	{
-		dest := Destination{config: Config{PartitionKeyTemplate: "partitionKey"}}
+		dest := Destination{}
+		err := dest.Configure(ctx, map[string]string{"partitionKeyTemplate": "partitionKey"})
+		is.NoErr(err)
 
-		request := dest.createPutRequestInput(records)
+		request, err := dest.createPutRequestInput(ctx, records)
+		is.NoErr(err)
 
 		for i, req := range request.Records {
 			is.Equal(*req.PartitionKey, "partitionKey")
@@ -58,7 +62,8 @@ func TestCreatePutRequestInput(t *testing.T) {
 	{
 		dest := Destination{config: Config{}}
 
-		request := dest.createPutRequestInput(records)
+		request, err := dest.createPutRequestInput(ctx, records)
+		is.NoErr(err)
 
 		for i, req := range request.Records {
 			is.Equal(req.Data, records[i].Bytes())

@@ -138,22 +138,19 @@ func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string,
 
 	var sb strings.Builder
 	if err := d.partitionKeyTempl.Execute(&sb, rec); err != nil {
-		return "", fmt.Errorf("failed to write record from partition key template: %w", err)
+		return "", fmt.Errorf("failed to create partition key from template: %w", err)
 	}
 
 	return sb.String(), nil
 }
 
-func (d *Destination) createPutRequestInput(records []sdk.Record) *kinesis.PutRecordsInput {
+func (d *Destination) createPutRequestInput(ctx context.Context, records []sdk.Record) (*kinesis.PutRecordsInput, error) {
 	entries := make([]types.PutRecordsRequestEntry, 0, len(records))
 
 	for _, rec := range records {
-		partitionKey := d.config.PartitionKeyTemplate
-		if partitionKey == "" {
-			partitionKey = string(rec.Key.Bytes())
-			if len(partitionKey) > 256 {
-				partitionKey = partitionKey[:256]
-			}
+		partitionKey, err := d.partitionKey(ctx, rec)
+		if err != nil {
+			return nil, err
 		}
 
 		recordEntry := types.PutRecordsRequestEntry{
@@ -167,11 +164,14 @@ func (d *Destination) createPutRequestInput(records []sdk.Record) *kinesis.PutRe
 		StreamARN:  &d.config.StreamARN,
 		StreamName: &d.config.StreamName,
 		Records:    entries,
-	}
+	}, nil
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	req := d.createPutRequestInput(records)
+	req, err := d.createPutRequestInput(ctx, records)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create put request: %w", err)
+	}
 
 	var written int
 	output, err := d.client.PutRecords(ctx, req)
