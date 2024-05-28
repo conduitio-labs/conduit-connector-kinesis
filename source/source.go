@@ -285,10 +285,6 @@ func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
 }
 
 func (s *Source) listenEvents(ctx context.Context) {
-	if s.tomb == nil {
-		panic("source tomb.Tomb was not assigned")
-	}
-
 	for streamTuple := range s.streamMap.IterBuffered() {
 		shardID, eventStream := streamTuple.Key, streamTuple.Val
 
