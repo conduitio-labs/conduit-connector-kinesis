@@ -38,6 +38,11 @@ type Destination struct {
 	// client is the Client for the AWS Kinesis API
 	client *kinesis.Client
 
+	// partitionKeyTempl is the parsed template given from the
+	// PartitionKeyTemplate configuration parameter. If none given
+	// will be set to nil.
+	partitionKeyTempl *template.Template
+
 	// httpClient is the http.Client used for interacting with the kinesis API.
 	// We need a custom one so that we can cleanup leaking http connections on
 	// the teardown method.
@@ -62,6 +67,13 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 		return fmt.Errorf("invalid config: %w", err)
 	}
 	sdk.Logger(ctx).Info().Msg("parsed destination configuration")
+
+	if d.config.PartitionKeyTemplate != "" {
+		d.partitionKeyTempl, err = template.New("partitionKey").Parse(d.config.PartitionKeyTemplate)
+		if err != nil {
+			return fmt.Errorf("error parsing partition key template: %w", err)
+		}
+	}
 
 	// Configure the creds for the client
 	var cfgOptions []func(*config.LoadOptions) error
@@ -124,14 +136,9 @@ func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string,
 		return partitionKey, nil
 	}
 
-	t, err := template.New("partitionKey").Parse(d.config.PartitionKeyTemplate)
-	if err != nil {
-		return "", err
-	}
-
 	var sb strings.Builder
-	if err := t.Execute(&sb, rec); err != nil {
-		return "", fmt.Errorf("failed to write record: %w", err)
+	if err := d.partitionKeyTempl.Execute(&sb, rec); err != nil {
+		return "", fmt.Errorf("failed to write record from partition key template: %w", err)
 	}
 
 	return sb.String(), nil
