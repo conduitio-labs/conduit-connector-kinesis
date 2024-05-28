@@ -127,6 +127,8 @@ func (d *Destination) Open(ctx context.Context) error {
 func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string, error) {
 	if d.config.PartitionKeyTemplate == "" {
 		partitionKey := string(rec.Key.Bytes())
+		// partition keys must be less than 256 characters
+		// https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html#partition-key
 		if len(partitionKey) > 256 {
 			partitionKey = partitionKey[:256]
 			sdk.Logger(ctx).Warn().
