@@ -18,10 +18,6 @@ test-integration: up
 generate:
 	go generate ./...
 
-.PHONY: install-paramgen
-install-paramgen:
-	go install github.com/conduitio/conduit-connector-sdk/cmd/paramgen@latest
-
 .PHONY: install-tools
 install-tools:
 	@echo Installing tools from tools.go
