@@ -193,7 +193,6 @@ func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) 
 		case <-time.After(time.Duration(secsToWait) * time.Second):
 			// retry status check
 		}
-
 	}
 
 	return fmt.Errorf("consumer wait timed out")
