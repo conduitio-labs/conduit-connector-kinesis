@@ -189,7 +189,7 @@ func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) 
 
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("context timeout while trying for consumer to be ready")
+			return fmt.Errorf("failed to wait for consumer to be ready: %w", ctx.Err())
 		case <-time.After(time.Duration(secsToWait) * time.Second):
 			// retry status check
 		}
