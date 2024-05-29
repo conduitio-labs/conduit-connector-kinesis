@@ -21,7 +21,7 @@ the subscription is up to date (all present source records read), at which point
 | `aws.accessKeyId`     | Access Key ID associated with your AWS resources | true     | ""            |
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
-| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
+| `aws.url`     | The URL for AWS (useful when testing the connector with localstack). | false     | ""            |
 | `streamName`     | The AWS Kinesis stream name | false     | ""            |
 | `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
 | `startFromLatest`     | Set this value to true to ignore any records already in the stream  | false     | false           |
