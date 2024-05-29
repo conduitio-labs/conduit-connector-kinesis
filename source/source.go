@@ -201,7 +201,7 @@ func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) 
 func (s *Source) Read(ctx context.Context) (rec sdk.Record, err error) {
 	select {
 	case <-ctx.Done():
-		return rec, ctx.Err()
+		return rec, fmt.Errorf("source read timed out: %w", ctx.Err())
 	case rec := <-s.buffer:
 		return rec, nil
 	}
