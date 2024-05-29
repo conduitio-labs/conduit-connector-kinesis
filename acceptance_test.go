@@ -74,7 +74,6 @@ func TestNewRandomStreamDoesntLeak(t *testing.T) {
 	}
 
 	setRandomStreamARNToCfg(t, cfg)
-	t.Log(cfg["streamARN"])
 }
 
 func setRandomStreamARNToCfg(t *testing.T, cfg map[string]string) {

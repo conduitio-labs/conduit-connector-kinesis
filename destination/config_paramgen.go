@@ -39,9 +39,9 @@ func (Config) Parameters() map[string]sdk.Parameter {
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{},
 		},
-		"partitionKey": {
+		"partitionKeyTemplate": {
 			Default:     "",
-			Description: "partitionKey represents the kinesis partition key. Use this to group records into one or multiple shards.",
+			Description: "partitionKeyTemplate accepts a go template as an argument, with the record being written as the main data context. If an empty template is passed, the partition key will adopt the record key string value. If the record key string exceeds 256 it will be trimmed down from start to fit the partition key size",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{},
 		},
