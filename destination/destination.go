@@ -17,7 +17,7 @@ package destination
 import (
 	"context"
 	"fmt"
-	"html/template"
+	"text/template"
 	"net/http"
 	"strconv"
 	"strings"
