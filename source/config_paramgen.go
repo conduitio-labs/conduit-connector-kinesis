@@ -40,8 +40,8 @@ func (Config) Parameters() map[string]sdk.Parameter {
 			Validations: []sdk.Validation{},
 		},
 		"startFromLatest": {
-			Default:     "",
-			Description: "startFromLatest defaults to false. When true, sets the iterator type to LATEST (iterates from the point that the connection begins). when false, sets the iterator type to TRIM_HORIZON (iterates from the oldest record in the shard).",
+			Default:     "false",
+			Description: "startFromLatest defaults to false. When true, sets the iterator type to LATEST (iterates from the point that the connection begins = CDC). when false, sets the iterator type to TRIM_HORIZON (iterates from the oldest record in the shard = snapshot). Iterators eventually shift to latest after snapshot has been written",
 			Type:        sdk.ParameterTypeBool,
 			Validations: []sdk.Validation{},
 		},

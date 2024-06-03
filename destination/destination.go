@@ -1,8 +1,23 @@
+// Copyright © 2024 Meroxa, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package destination
 
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -21,23 +36,31 @@ type Destination struct {
 
 	// client is the Client for the AWS Kinesis API
 	client *kinesis.Client
+
+	// httpClient is the http.Client used for interacting with the kinesis API.
+	// We need a custom one so that we can cleanup leaking http connections on
+	// the teardown method.
+	httpClient *http.Client
 }
 
 func New() sdk.Destination {
-	return sdk.DestinationWithMiddleware(&Destination{},
-		sdk.DefaultDestinationMiddleware()...)
+	httpClient := &http.Client{Transport: &http.Transport{}}
+	return sdk.DestinationWithMiddleware(
+		&Destination{httpClient: httpClient},
+		sdk.DefaultDestinationMiddleware()...,
+	)
 }
 
 func (d *Destination) Parameters() map[string]sdk.Parameter {
-	return Config{}.Parameters()
+	return d.config.Parameters()
 }
 
 func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
-	sdk.Logger(ctx).Info().Msg("Configuring Destination...")
 	err := sdk.Util.ParseConfig(cfg, &d.config)
 	if err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
+	sdk.Logger(ctx).Info().Msg("parsed destination configuration")
 
 	// Configure the creds for the client
 	var cfgOptions []func(*config.LoadOptions) error
@@ -47,6 +70,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 			d.config.AWSAccessKeyID,
 			d.config.AWSSecretAccessKey,
 			"")))
+	cfgOptions = append(cfgOptions, config.WithHTTPClient(d.httpClient))
 
 	if d.config.AWSURL != "" {
 		cfgOptions = append(cfgOptions, config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(func(_, _ string, _ ...interface{}) (aws.Endpoint, error) {
@@ -66,6 +90,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 	if err != nil {
 		return fmt.Errorf("failed to load aws config with given credentials : %w", err)
 	}
+	sdk.Logger(ctx).Info().Msg("loaded destination aws configuration")
 
 	d.client = kinesis.NewFromConfig(awsCfg)
 
@@ -81,6 +106,8 @@ func (d *Destination) Open(ctx context.Context) error {
 		return fmt.Errorf("error when attempting to test connection to stream: %w", err)
 	}
 
+	sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+
 	return nil
 }
 
@@ -95,7 +122,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 				StreamARN:    &d.config.StreamARN,
 			})
 			if err != nil {
-				return count, err
+				return count, fmt.Errorf("failed to put record into partition %s: %w", partition, err)
 			}
 
 			count++
@@ -104,7 +131,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 		return count, nil
 	}
 
-	var entries []types.PutRecordsRequestEntry
+	entries := make([]types.PutRecordsRequestEntry, 0, len(records))
 
 	// create the put records request
 	for _, rec := range records {
@@ -129,7 +156,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 	var written int
 	output, err := d.client.PutRecords(ctx, req)
 	if err != nil {
-		return written, err
+		return written, fmt.Errorf("failed to put %v records into %s: %w", len(req.Records), *req.StreamName, err)
 	}
 
 	for _, rec := range output.Records {
@@ -144,6 +171,7 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {
-	// no shutdown required
+	d.httpClient.CloseIdleConnections()
+	sdk.Logger(ctx).Info().Msg("closed all httpClient unused connections")
 	return nil
 }

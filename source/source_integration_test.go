@@ -1,9 +1,24 @@
+// Copyright © 2024 Meroxa, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package source
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strconv"
 	"testing"
 	"time"
@@ -13,9 +28,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
+	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
-var cfg map[string]string = map[string]string{
+var cfg = map[string]string{
 	"streamARN":           "arn:aws:kinesis:us-east-1:000000000000:stream/stream-source",
 	"aws.region":          "us-east-1",
 	"aws.accessKeyId":     "accesskeymock",
@@ -27,8 +43,9 @@ func TestRead(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
 	con := Source{
-		buffer:    make(chan sdk.Record, 1),
-		streamMap: make(map[string]*kinesis.SubscribeToShardEventStream),
+		httpClient: &http.Client{Transport: &http.Transport{}},
+		buffer:     make(chan sdk.Record, 1),
+		streamMap:  cmap.New[*kinesis.SubscribeToShardEventStream](),
 	}
 
 	err := con.Configure(ctx, cfg)
@@ -67,43 +84,28 @@ func TestRead(t *testing.T) {
 		recs = append(recs, getRecs.Records...)
 	}
 
-	length := len(recs)
-	fmt.Println(length, "read records using getRecords")
+	t.Logf("%v read records using getRecords", len(recs))
 
 	err = con.Open(ctx, nil)
 	is.NoErr(err)
-
-	fmt.Println("snapshot")
 
 	for i := 0; i < 5; i++ {
 		_, err := con.Read(ctx)
 		is.NoErr(err)
 	}
 
-	fmt.Println("records read")
+	t.Log("records read")
 
-	seqNumber := make(chan string, 1)
+	putRecResp, err := con.client.PutRecord(ctx, &kinesis.PutRecordInput{
+		StreamARN:    &con.config.StreamARN,
+		Data:         []byte("some data here"),
+		PartitionKey: aws.String("5"),
+	})
+	is.NoErr(err)
 
-	// send a new message
-	go func() {
-		fmt.Println("send record async")
-		putRecResp, err := con.client.PutRecord(ctx, &kinesis.PutRecordInput{
-			StreamARN:    &con.config.StreamARN,
-			Data:         []byte("some data here"),
-			PartitionKey: aws.String("5"),
-		})
-		is.NoErr(err)
+	t.Log(putRecResp.ShardId, putRecResp.SequenceNumber)
 
-		fmt.Println(putRecResp.ShardId, putRecResp.SequenceNumber)
-
-		seqNumber <- *putRecResp.SequenceNumber
-	}()
-
-	fmt.Println("block for new message sent")
-	// receive value so we know theres one in the buffer before calling read
-	sequenceNumber := <-seqNumber
-
-	fmt.Println("try read again")
+	sequenceNumber := *putRecResp.SequenceNumber
 
 	var readRec sdk.Record
 	for {
@@ -112,8 +114,6 @@ func TestRead(t *testing.T) {
 			continue
 		}
 
-		fmt.Println("read record")
-
 		is.NoErr(err)
 		readRec = rec
 
@@ -121,8 +121,6 @@ func TestRead(t *testing.T) {
 	}
 
 	is.Equal("kinesis-"+sequenceNumber, readRec.Metadata["sequenceNumber"])
-
-	fmt.Println("cdc")
 
 	// expect message to be read from subscription before timeout
 	for {

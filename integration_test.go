@@ -15,14 +15,47 @@
 package kinesis
 
 import (
+	"context"
+	"testing"
+
 	"github.com/conduitio-labs/conduit-connector-kinesis/destination"
 	"github.com/conduitio-labs/conduit-connector-kinesis/source"
-	sdk "github.com/conduitio/conduit-connector-sdk"
+	"github.com/matryer/is"
+	"go.uber.org/goleak"
 )
 
-// Connector combines all constructors for each plugin in one struct.
-var Connector = sdk.Connector{
-	NewSpecification: Specification,
-	NewSource:        source.New,
-	NewDestination:   destination.New,
+func TestConnectorCleanup(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	is := is.New(t)
+	ctx := context.Background()
+
+	cfg := map[string]string{
+		"aws.region":          "us-east-1",
+		"aws.accessKeyId":     "accesskeymock",
+		"aws.secretAccessKey": "accesssecretmock",
+		"aws.url":             "http://localhost:4566",
+	}
+
+	setRandomStreamARNToCfg(t, cfg)
+
+	src := source.New()
+	err := src.Configure(ctx, cfg)
+	is.NoErr(err)
+
+	err = src.Open(ctx, nil)
+	is.NoErr(err)
+
+	err = src.Teardown(ctx)
+	is.NoErr(err)
+
+	dest := destination.New()
+	err = dest.Configure(ctx, cfg)
+	is.NoErr(err)
+
+	err = dest.Open(ctx)
+	is.NoErr(err)
+
+	err = dest.Teardown(ctx)
+	is.NoErr(err)
 }

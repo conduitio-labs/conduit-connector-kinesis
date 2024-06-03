@@ -1,8 +1,6 @@
-module github.com/mer-oscar/conduit-connector-kinesis
+module github.com/conduitio-labs/conduit-connector-kinesis
 
-go 1.21.1
-
-toolchain go1.22.2
+go 1.22.3
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.27.0
@@ -14,8 +12,10 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/matryer/is v1.4.1
 	github.com/oklog/ulid/v2 v2.1.0
+	github.com/orcaman/concurrent-map/v2 v2.0.1
 	github.com/rs/zerolog v1.33.0
 	go.uber.org/goleak v1.3.0
+	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
 )
 
 require (
@@ -227,7 +227,6 @@ require (
 	google.golang.org/grpc v1.64.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
-	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.4.7 // indirect
