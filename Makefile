@@ -1,10 +1,10 @@
-.PHONY: build test test-integration generate install-paramgen install-tools golangci-lint-install
-
 VERSION=$(shell git describe --tags --dirty --always)
 
+.PHONY: build
 build:
 	go build -ldflags "-X 'github.com/conduitio-labs/conduit-connector-kinesis.version=${VERSION}'" -o conduit-connector-kinesis cmd/connector/main.go
 
+.PHONY: test
 test:
 	go test $(GOTEST_FLAGS) -race ./...
 
@@ -13,23 +13,24 @@ test-integration: up
 		docker compose -f test/docker-compose.yml down; \
 		exit $$ret
 
+.PHONY: generate
 generate:
 	go generate ./...
 
-install-paramgen:
-	go install github.com/conduitio/conduit-connector-sdk/cmd/paramgen@latest
-
+.PHONY: install-tools
 install-tools:
 	@echo Installing tools from tools.go
 	@go list -e -f '{{ join .Imports "\n" }}' tools.go | xargs -tI % go install %
 	@go mod tidy
 
+.PHONY: lint
 lint:
 	golangci-lint run -v
 
-
+.PHONY: up
 up:
 	docker compose -f test/docker-compose.yml up --quiet-pull -d --wait 
 
+.PHONY: down
 down:
 	docker compose -f test/docker-compose.yml down -v
