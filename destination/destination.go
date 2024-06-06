@@ -113,7 +113,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 	d.client = kinesis.NewFromConfig(awsCfg)
 
 	if d.config.UseMultiStreamMode {
-		d.recordWriter = &multiStreamARNWriter{destination: d}
+		d.recordWriter = &multiStreamWriter{destination: d}
 
 		// the default behaviour is to use the streamARN from the
 		// opencdc.collection metadata field
@@ -126,7 +126,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 			}
 		}
 	} else {
-		d.recordWriter = &singleStreamARNWriter{destination: d}
+		d.recordWriter = &singleStreamWriter{destination: d}
 	}
 
 	return nil
@@ -212,11 +212,11 @@ type recordWriter interface {
 	Write(ctx context.Context, records []sdk.Record) (int, error)
 }
 
-type singleStreamARNWriter struct {
+type singleStreamWriter struct {
 	destination *Destination
 }
 
-func (s *singleStreamARNWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
+func (s *singleStreamWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
 	req, err := s.destination.createPutRequestInput(ctx, records, s.destination.config.StreamARN)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create put records request: %w", err)
@@ -230,7 +230,10 @@ func (s *singleStreamARNWriter) Write(ctx context.Context, records []sdk.Record)
 
 	for _, rec := range output.Records {
 		if rec.ErrorCode != nil {
-			return written, fmt.Errorf("error when attempting to insert record %s: %s", *rec.ErrorCode, *rec.ErrorMessage)
+			return written, fmt.Errorf(
+				"error when attempting to insert record, error code %s: %s",
+				*rec.ErrorCode, *rec.ErrorMessage,
+			)
 		}
 		written++
 	}
@@ -239,11 +242,11 @@ func (s *singleStreamARNWriter) Write(ctx context.Context, records []sdk.Record)
 	return written, nil
 }
 
-type multiStreamARNWriter struct {
+type multiStreamWriter struct {
 	destination *Destination
 }
 
-func (m *multiStreamARNWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
+func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
 	batches, err := parseBatches(records, m.destination.streamARNParser)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse batches: %w", err)
@@ -263,7 +266,10 @@ func (m *multiStreamARNWriter) Write(ctx context.Context, records []sdk.Record) 
 
 		for _, rec := range output.Records {
 			if rec.ErrorCode != nil {
-				return written, fmt.Errorf("error when attempting to insert record %s: %s", *rec.ErrorCode, *rec.ErrorMessage)
+				return written, fmt.Errorf(
+					"error when attempting to insert record, error code %s: %s",
+					*rec.ErrorCode, *rec.ErrorMessage,
+				)
 			}
 			written++
 		}
