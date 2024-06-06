@@ -86,7 +86,7 @@ func TestPartitionKey(t *testing.T) {
 		})
 		is.NoErr(err)
 
-		expectedPartitionKey := sdk.Position("test-position")
+		expectedPartitionKey := sdk.Position("test-partition-key")
 
 		partitionKey, err := d.partitionKey(ctx, sdk.Record{
 			Position: expectedPartitionKey,
