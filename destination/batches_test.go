@@ -19,7 +19,7 @@ func TestParseBatches(t *testing.T) {
 		is.Equal(0, len(batches))
 	})
 
-	t.Run("only one stream given", func(t *testing.T) {
+	t.Run("only one stream given using fromColFieldParser", func(t *testing.T) {
 		is := is.New(t)
 		parser := &fromColFieldParser{defaultStreamARN: "test-stream-arn"}
 
@@ -48,7 +48,7 @@ func TestParseBatches(t *testing.T) {
 		is.Equal("test-stream-arn", batches[2].streamARN)
 	})
 
-	t.Run("different streams given", func(t *testing.T) {
+	t.Run("different streams given using fromTemplateParser", func(t *testing.T) {
 		is := is.New(t)
 
 		parser, err := newFromTemplateParser(`{{ index .Metadata "streamARN" }}`)

@@ -168,7 +168,11 @@ func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string,
 	return sb.String(), nil
 }
 
-func (d *Destination) createPutRequestInput(ctx context.Context, records []sdk.Record) (*kinesis.PutRecordsInput, error) {
+func (d *Destination) createPutRequestInput(
+	ctx context.Context,
+	records []sdk.Record,
+	streamARN string,
+) (*kinesis.PutRecordsInput, error) {
 	entries := make([]types.PutRecordsRequestEntry, 0, len(records))
 
 	for _, rec := range records {
@@ -185,9 +189,8 @@ func (d *Destination) createPutRequestInput(ctx context.Context, records []sdk.R
 	}
 
 	return &kinesis.PutRecordsInput{
-		StreamARN:  &d.config.StreamARN,
-		StreamName: &d.config.StreamName,
-		Records:    entries,
+		StreamARN: &d.config.StreamARN,
+		Records:   entries,
 	}, nil
 }
 
@@ -214,7 +217,7 @@ type singleStreamARNWriter struct {
 }
 
 func (s *singleStreamARNWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	req, err := s.destination.createPutRequestInput(ctx, records)
+	req, err := s.destination.createPutRequestInput(ctx, records, s.destination.config.StreamARN)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create put records request: %w", err)
 	}
@@ -248,7 +251,7 @@ func (m *multiStreamARNWriter) Write(ctx context.Context, records []sdk.Record) 
 
 	var written int
 	for _, batch := range batches {
-		req, err := m.destination.createPutRequestInput(ctx, batch.records)
+		req, err := m.destination.createPutRequestInput(ctx, batch.records, batch.streamARN)
 		if err != nil {
 			return written, fmt.Errorf("failed to create put records request: %w", err)
 		}
