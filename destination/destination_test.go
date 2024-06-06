@@ -82,14 +82,14 @@ func TestPartitionKey(t *testing.T) {
 		is := is.New(t)
 		d := Destination{}
 		err := d.Configure(ctx, map[string]string{
-			"partitionKeyTemplate": `{{ printf "%s" .Key }}`,
+			"partitionKeyTemplate": `{{ printf "%s" .Position }}`,
 		})
 		is.NoErr(err)
 
-		expectedPartitionKey := sdk.RawData("test-partition-key")
+		expectedPartitionKey := sdk.Position("test-partition-key")
 
 		partitionKey, err := d.partitionKey(ctx, sdk.Record{
-			Key: expectedPartitionKey,
+			Position: expectedPartitionKey,
 		})
 		is.NoErr(err)
 		is.Equal(partitionKey, string(expectedPartitionKey))
