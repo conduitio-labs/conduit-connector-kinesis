@@ -117,7 +117,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 
 		// the default behaviour is to use the streamARN from the
 		// opencdc.collection metadata field
-		d.streamARNParser = &fromMetadataParser{defaultStreamARN: d.config.StreamARN}
+		d.streamARNParser = &fromColFieldParser{defaultStreamARN: d.config.StreamARN}
 
 		if d.config.StreamARNTemplate != "" {
 			d.streamARNParser, err = newFromTemplateParser(d.config.StreamARNTemplate)

@@ -26,11 +26,13 @@ type streamARNParser interface {
 	ParseStreamARN(sdk.Record) (string, error)
 }
 
-type fromMetadataParser struct {
+// fromColFieldParser parses the streamARN from the opencdc.collection record
+// metadata field.
+type fromColFieldParser struct {
 	defaultStreamARN string
 }
 
-func (p *fromMetadataParser) ParseStreamARN(r sdk.Record) (string, error) {
+func (p *fromColFieldParser) ParseStreamARN(r sdk.Record) (string, error) {
 	streamARN, err := r.Metadata.GetCollection()
 	if err != nil {
 		//nolint:nilerr // err is not nil if metadata is not set, so we can safely ignore the error
@@ -40,6 +42,7 @@ func (p *fromMetadataParser) ParseStreamARN(r sdk.Record) (string, error) {
 	return streamARN, nil
 }
 
+// fromTemplateParser parses the streamARN from the given go template.
 type fromTemplateParser struct {
 	template *template.Template
 }
