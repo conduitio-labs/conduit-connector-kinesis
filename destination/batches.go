@@ -98,8 +98,8 @@ func parseBatches(records []sdk.Record, parser streamARNParser) ([]recordBatch, 
 			continue
 		}
 
-		if batch := batches[len(batches)-1]; batch.streamARN == streamARN {
-			batch.records = append(batch.records, r)
+		if batchRef := &batches[len(batches)-1]; batchRef.streamARN == streamARN {
+			batchRef.records = append(batchRef.records, r)
 		} else {
 			batches = append(batches, recordBatch{
 				streamARN: streamARN,
