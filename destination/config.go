@@ -21,10 +21,10 @@ type Config struct {
 	// Config includes parameters that are the same in the source and destination.
 	common.Config
 
-	// UseSingleShard is a boolean that determines whether to add records in batches using KinesisClient.PutRecords
-	// (ordering not guaranteed, records written to multiple shards)
-	// or to add records to a single shard using KinesisClient.PutRecord
-	// (preserves ordering, records written to a single shard)
-	// Defaults to false to take advantage of batching performance
-	UseSingleShard bool `json:"useSingleShard" validate:"required" default:"true"`
+	// PartitionKeyTemplate accepts a go template as an argument, with the
+	// record being written as the main data context. If an empty template is
+	// passed, the partition key will adopt the record key string value. If the
+	// record key string exceeds 256 it will be trimmed down from start to fit
+	// the partition key size
+	PartitionKeyTemplate string `json:"partitionKeyTemplate"`
 }

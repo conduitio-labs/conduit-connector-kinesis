@@ -8,7 +8,6 @@ build:
 test:
 	go test $(GOTEST_FLAGS) -race ./...
 
-.PHONY: test-integration
 test-integration: up
 	go test $(GOTEST_FLAGS) -v -race ./...; ret=$$?; \
 		docker compose -f test/docker-compose.yml down; \

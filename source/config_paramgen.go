@@ -11,7 +11,7 @@ func (Config) Parameters() map[string]sdk.Parameter {
 	return map[string]sdk.Parameter{
 		"aws.accessKeyId": {
 			Default:     "",
-			Description: "amazon access key id",
+			Description: "aws.accessKeyId is the amazon access key id",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{
 				sdk.ValidationRequired{},
@@ -27,7 +27,7 @@ func (Config) Parameters() map[string]sdk.Parameter {
 		},
 		"aws.secretAccessKey": {
 			Default:     "",
-			Description: "amazon secret access key",
+			Description: "aws.secretAccessKey is the amazon secret access key",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{
 				sdk.ValidationRequired{},
@@ -35,7 +35,7 @@ func (Config) Parameters() map[string]sdk.Parameter {
 		},
 		"aws.url": {
 			Default:     "",
-			Description: "URL for endpoint override - testing/dry-run only",
+			Description: "aws.url is the URL for endpoint override - testing/dry-run only",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{},
 		},

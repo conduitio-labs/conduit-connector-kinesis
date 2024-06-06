@@ -19,6 +19,8 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
+	"text/template"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -26,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	"github.com/google/uuid"
 )
 
 type Destination struct {
@@ -36,6 +37,11 @@ type Destination struct {
 
 	// client is the Client for the AWS Kinesis API
 	client *kinesis.Client
+
+	// partitionKeyTempl is the parsed template given from the
+	// PartitionKeyTemplate configuration parameter. If none given
+	// will be set to nil.
+	partitionKeyTempl *template.Template
 
 	// httpClient is the http.Client used for interacting with the kinesis API.
 	// We need a custom one so that we can cleanup leaking http connections on
@@ -61,6 +67,13 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 		return fmt.Errorf("invalid config: %w", err)
 	}
 	sdk.Logger(ctx).Info().Msg("parsed destination configuration")
+
+	if d.config.PartitionKeyTemplate != "" {
+		d.partitionKeyTempl, err = template.New("partitionKey").Parse(d.config.PartitionKeyTemplate)
+		if err != nil {
+			return fmt.Errorf("error parsing partition key template: %w", err)
+		}
+	}
 
 	// Configure the creds for the client
 	var cfgOptions []func(*config.LoadOptions) error
@@ -111,46 +124,55 @@ func (d *Destination) Open(ctx context.Context) error {
 	return nil
 }
 
-func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	if d.config.UseSingleShard {
-		partition := uuid.New().String()
-		var count int
-		for _, rec := range records {
-			_, err := d.client.PutRecord(ctx, &kinesis.PutRecordInput{
-				PartitionKey: &partition,
-				Data:         rec.Bytes(),
-				StreamARN:    &d.config.StreamARN,
-			})
-			if err != nil {
-				return count, fmt.Errorf("failed to put record into partition %s: %w", partition, err)
-			}
-
-			count++
+func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string, error) {
+	if d.config.PartitionKeyTemplate == "" {
+		partitionKey := string(rec.Key.Bytes())
+		// partition keys must be less than 256 characters
+		// https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html#partition-key
+		if len(partitionKey) > 256 {
+			partitionKey = partitionKey[:256]
+			sdk.Logger(ctx).Warn().
+				Msg("using a record key greater than 256 characters as a partition key; trimming it down")
 		}
 
-		return count, nil
+		return partitionKey, nil
 	}
 
+	var sb strings.Builder
+	if err := d.partitionKeyTempl.Execute(&sb, rec); err != nil {
+		return "", fmt.Errorf("failed to create partition key from template: %w", err)
+	}
+
+	return sb.String(), nil
+}
+
+func (d *Destination) createPutRequestInput(ctx context.Context, records []sdk.Record) (*kinesis.PutRecordsInput, error) {
 	entries := make([]types.PutRecordsRequestEntry, 0, len(records))
 
-	// create the put records request
 	for _, rec := range records {
-		pKey := string(rec.Key.Bytes())
-		if len(pKey) > 256 {
-			pKey = pKey[:256]
+		partitionKey, err := d.partitionKey(ctx, rec)
+		if err != nil {
+			return nil, err
 		}
 
 		recordEntry := types.PutRecordsRequestEntry{
 			Data:         rec.Bytes(),
-			PartitionKey: &pKey,
+			PartitionKey: &partitionKey,
 		}
 		entries = append(entries, recordEntry)
 	}
 
-	req := &kinesis.PutRecordsInput{
+	return &kinesis.PutRecordsInput{
 		StreamARN:  &d.config.StreamARN,
 		StreamName: &d.config.StreamName,
 		Records:    entries,
+	}, nil
+}
+
+func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
+	req, err := d.createPutRequestInput(ctx, records)
+	if err != nil {
+		return 0, fmt.Errorf("failed to create put request: %w", err)
 	}
 
 	var written int

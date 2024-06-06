@@ -11,7 +11,7 @@ func (Config) Parameters() map[string]sdk.Parameter {
 	return map[string]sdk.Parameter{
 		"aws.accessKeyId": {
 			Default:     "",
-			Description: "amazon access key id",
+			Description: "aws.accessKeyId is the amazon access key id",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{
 				sdk.ValidationRequired{},
@@ -27,7 +27,7 @@ func (Config) Parameters() map[string]sdk.Parameter {
 		},
 		"aws.secretAccessKey": {
 			Default:     "",
-			Description: "amazon secret access key",
+			Description: "aws.secretAccessKey is the amazon secret access key",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{
 				sdk.ValidationRequired{},
@@ -35,7 +35,13 @@ func (Config) Parameters() map[string]sdk.Parameter {
 		},
 		"aws.url": {
 			Default:     "",
-			Description: "URL for endpoint override - testing/dry-run only",
+			Description: "aws.url is the URL for endpoint override - testing/dry-run only",
+			Type:        sdk.ParameterTypeString,
+			Validations: []sdk.Validation{},
+		},
+		"partitionKeyTemplate": {
+			Default:     "",
+			Description: "partitionKeyTemplate accepts a go template as an argument, with the record being written as the main data context. If an empty template is passed, the partition key will adopt the record key string value. If the record key string exceeds 256 it will be trimmed down from start to fit the partition key size",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{},
 		},
@@ -52,14 +58,6 @@ func (Config) Parameters() map[string]sdk.Parameter {
 			Description: "streamName is the name of the Kinesis Data Stream",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{},
-		},
-		"useSingleShard": {
-			Default:     "true",
-			Description: "useSingleShard is a boolean that determines whether to add records in batches using KinesisClient.PutRecords (ordering not guaranteed, records written to multiple shards) or to add records to a single shard using KinesisClient.PutRecord (preserves ordering, records written to a single shard) Defaults to false to take advantage of batching performance",
-			Type:        sdk.ParameterTypeBool,
-			Validations: []sdk.Validation{
-				sdk.ValidationRequired{},
-			},
 		},
 	}
 }
