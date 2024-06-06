@@ -19,11 +19,12 @@ The Source connector for AWS Kinesis opens subscriptions to each of the availabl
 | `aws.accessKeyId`     | Access Key ID associated with your AWS resources | true     | ""            |
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
+| `aws.url`     | The URL for AWS (useful when testing the connector with localstack). | false     | ""            |
 | `streamName`     | The AWS Kinesis stream name | false     | ""            |
 | `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
-| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
 | `startFromLatest`     | Set this value to true to ignore any records already in the stream  | false     | false           |
 
+[Here's](./source/pipeline.example.yaml) an example of a complete configuration pipeline for a Kinesis source connector. 
 
 ## Destination
 The Destination connector for AWS Kinesis writes records to the stream either to a single shard or to multiple shards through `partitionKey`. The size limit for a single record is 1MB, attempting to write a single record's data which is greater than 1MB will result in an error.
@@ -40,14 +41,9 @@ If given a partition key go template, the key will be generated from the given t
 | `aws.accessKeyId`     | Access Key ID associated with your AWS resources | true     | ""            |
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
+| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
 | `streamName`     | The AWS Kinesis stream name | false     | ""            |
 | `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
-| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
 | `partitionKeyTemplate`  | The go template that will be used to generate partition keys. By default empty, which will generate partition keys from the record key string representation.    | false     | ""            |
 
-
-## Known Issues & Limitations
-
-
-## Planned work
-
+[Here's](./destination/pipeline.example.yaml) an example of a complete configuration pipeline for a Kinesis destination connector. 
