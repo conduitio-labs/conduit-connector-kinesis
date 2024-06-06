@@ -160,7 +160,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 
 	// listenEvents will use tomb.Go, so we initialize it here
 	s.tomb = &tomb.Tomb{}
-	go s.listenEvents(ctx)
+	s.listenEvents(ctx)
 
 	sdk.Logger(ctx).Info().Msg("source ready to be read from")
 
@@ -168,16 +168,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 }
 
 func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) error {
-	var lastStatus types.ConsumerStatus
 	for count := 1; count <= 5; count++ {
-		secsToWait := math.Exp2(float64(count))
-		sdk.Logger(ctx).Info().
-			Str("consumerARN", *consumer.ConsumerARN).
-			Float64("seconds", secsToWait).
-			Msg("waiting for consumer to be ready")
-
-		time.Sleep(time.Duration(secsToWait) * time.Second)
-
 		describedConsumer, err := s.client.DescribeStreamConsumer(ctx, &kinesis.DescribeStreamConsumerInput{
 			ConsumerARN:  consumer.ConsumerARN,
 			ConsumerName: consumer.ConsumerName,
@@ -186,24 +177,31 @@ func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) 
 		if err != nil {
 			return fmt.Errorf("failed to describe stream consumer: %w", err)
 		}
-
-		lastStatus = describedConsumer.ConsumerDescription.ConsumerStatus
-		if lastStatus == types.ConsumerStatusActive {
+		if describedConsumer.ConsumerDescription.ConsumerStatus == types.ConsumerStatusActive {
 			return nil
+		}
+
+		secsToWait := math.Exp2(float64(count))
+		sdk.Logger(ctx).Info().
+			Str("consumerARN", *consumer.ConsumerARN).
+			Float64("seconds", secsToWait).
+			Msg("waiting for consumer to be ready")
+
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("failed to wait for consumer to be ready: %w", ctx.Err())
+		case <-time.After(time.Duration(secsToWait) * time.Second):
+			// retry status check
 		}
 	}
 
-	return fmt.Errorf("consumer wait timed out with status %s", lastStatus)
+	return fmt.Errorf("consumer wait timed out")
 }
 
 func (s *Source) Read(ctx context.Context) (rec sdk.Record, err error) {
 	select {
 	case <-ctx.Done():
-		if err := ctx.Err(); err != nil {
-			return rec, fmt.Errorf("source read context is done: %w", err)
-		}
-
-		return rec, nil
+		return rec, fmt.Errorf("source read timed out: %w", ctx.Err())
 	case rec := <-s.buffer:
 		return rec, nil
 	}

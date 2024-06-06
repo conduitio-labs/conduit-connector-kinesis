@@ -10,9 +10,7 @@ Run `make test-integration` to run the integration tests.
 The Docker compose file at `test/docker-compose.yml` can be used to run the required resource (AWS Kinesis via Localstack) locally.
 
 ## Source
-The Source connector for AWS Kinesis opens subscriptions to each of the available shards in the stream and pushes records into the buffer until
-the subscription is up to date (all present source records read), at which point it switches to capturing the latest events in the stream. Every 5 minutes (the lifetime of the subscription), the subscription to the shard is refreshed.
-
+The Source connector for AWS Kinesis opens subscriptions to each of the available shards in the stream and pushes records into the buffer until the subscription is up to date (all present source records read), at which point it switches to capturing the latest events in the stream. Every 5 minutes (the lifetime of the subscription), the subscription to the shard is refreshed.
 
 ### Configuration
 
@@ -21,7 +19,7 @@ the subscription is up to date (all present source records read), at which point
 | `aws.accessKeyId`     | Access Key ID associated with your AWS resources | true     | ""            |
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
-| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
+| `aws.url`     | The URL for AWS (useful when testing the connector with localstack). | false     | ""            |
 | `streamName`     | The AWS Kinesis stream name | false     | ""            |
 | `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
 | `startFromLatest`     | Set this value to true to ignore any records already in the stream  | false     | false           |
@@ -30,6 +28,11 @@ the subscription is up to date (all present source records read), at which point
 
 ## Destination
 The Destination connector for AWS Kinesis writes records to the stream either to a single shard or to multiple shards through `partitionKey`. The size limit for a single record is 1MB, attempting to write a single record's data which is greater than 1MB will result in an error.
+
+By default the partition key will consist of the record key. If the record key exceeds 256 unicode characters, the key will be trimmed at the end to fit the max partition key size.
+
+If given a partition key go template, the key will be generated from the given template, with the record data as the main data context.
+
 
 ### Configuration
 
@@ -41,6 +44,6 @@ The Destination connector for AWS Kinesis writes records to the stream either to
 | `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
 | `streamName`     | The AWS Kinesis stream name | false     | ""            |
 | `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
-| `partitionKey` | The AWS Kinesis partition key. Use this to group records into one or multiple shards | false     | ""            |
+| `partitionKeyTemplate`  | The go template that will be used to generate partition keys. By default empty, which will generate partition keys from the record key string representation.    | false     | ""            |
 
 [Here's](./destination/pipeline.example.yaml) an example of a complete configuration pipeline for a Kinesis destination connector. 
