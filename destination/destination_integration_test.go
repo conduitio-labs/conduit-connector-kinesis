@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
 	"github.com/oklog/ulid/v2"
@@ -41,11 +42,68 @@ var cfg = map[string]string{
 	"aws.url":             "http://localhost:4566",
 }
 
+func TestWrite_MultiStream(t *testing.T) {
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	ctx := logger.WithContext(context.Background())
+	is := is.New(t)
+	con := newDestination()
+
+	// we make sure that the client is independent from the destination
+	testClient, err := newClient(ctx, &http.Client{}, common.Config{
+		AWSRegion:          "us-east-1",
+		AWSAccessKeyID:     "accesskeymock",
+		AWSSecretAccessKey: "accesssecretmock",
+		AWSURL:             "http://localhost:4566",
+	})
+	is.NoErr(err)
+
+	stream1 := setupDestinationTest(ctx, testClient, is)
+
+	err = con.Configure(ctx, map[string]string{
+		"aws.region":          "us-east-1",
+		"aws.accessKeyId":     "accesskeymock",
+		"aws.secretAccessKey": "accesssecretmock",
+		"aws.url":             "http://localhost:4566",
+		"streamARN":           stream1,
+		"useMultiStreamMode":  "true",
+	})
+	is.NoErr(err)
+
+	stream2 := setupDestinationTest(ctx, con.client, is)
+	stream3 := setupDestinationTest(ctx, con.client, is)
+
+	// wait for first stream to be created
+	err = con.Open(ctx)
+	is.NoErr(err)
+
+	var recs []sdk.Record
+	recs1 := testRecords(t)
+	recs = append(recs, recs1...)
+
+	recs2 := testRecordsStreamOnColField(t, stream2)
+	recs = append(recs, recs2...)
+
+	recs3 := testRecordsStreamOnColField(t, stream3)
+	recs = append(recs, recs3...)
+
+	written, err := con.Write(ctx, recs)
+	is.NoErr(err)
+	is.Equal(written, len(recs))
+
+	assertWrittenRecordsOnStream(is, con.client, stream1, recs1)
+	assertWrittenRecordsOnStream(is, con.client, stream2, recs2)
+	assertWrittenRecordsOnStream(is, con.client, stream3, recs3)
+
+	cleanupTest(ctx, con.client, con.config.StreamARN)
+
+	err = con.Teardown(ctx)
+	is.NoErr(err)
+}
+
 func setupDestinationTest(ctx context.Context, client *kinesis.Client, is *is.I) string {
 	testID := ulid.Make()
 
 	streamName := "stream-destination" + testID.String()
-	// create stream
 	_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
 		StreamName: &streamName,
 	})
@@ -58,6 +116,7 @@ func setupDestinationTest(ctx context.Context, client *kinesis.Client, is *is.I)
 	}
 
 	time.Sleep(time.Second * 1)
+
 	describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 		StreamName: &streamName,
 	})
@@ -180,10 +239,7 @@ func TestWrite_PutRecord(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	ctx := logger.WithContext(context.Background())
 	is := is.New(t)
-	con := Destination{
-		client:     &kinesis.Client{},
-		httpClient: &http.Client{},
-	}
+	con := newDestination()
 
 	err := con.Configure(ctx, cfg)
 	is.NoErr(err)
@@ -272,4 +328,32 @@ func makeRecords(count int, greaterThan5MB bool) []sdk.Record {
 		records = append(records, rec)
 	}
 	return records
+}
+
+func assertWrittenRecordsOnStream(is *is.I, client *kinesis.Client, streamARN string, records []sdk.Record) {
+	ctx := context.Background()
+	listShards, err := client.ListShards(ctx, &kinesis.ListShardsInput{
+		StreamARN: &streamARN,
+	})
+	is.NoErr(err)
+
+	var recs []types.Record
+	for _, shard := range listShards.Shards {
+		si, err := client.GetShardIterator(ctx, &kinesis.GetShardIteratorInput{
+			ShardId:           shard.ShardId,
+			ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
+			StreamARN:         &streamARN,
+		})
+		is.NoErr(err)
+
+		getRecs, err := client.GetRecords(ctx, &kinesis.GetRecordsInput{
+			StreamARN:     &streamARN,
+			ShardIterator: si.ShardIterator,
+		})
+		is.NoErr(err)
+
+		recs = append(recs, getRecs.Records...)
+	}
+
+	is.Equal(len(records), len(recs))
 }

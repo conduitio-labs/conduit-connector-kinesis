@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
 
@@ -54,12 +55,13 @@ type Destination struct {
 	streamARNParser streamARNParser
 }
 
-func New() sdk.Destination {
+func newDestination() *Destination {
 	httpClient := &http.Client{Transport: &http.Transport{}}
-	return sdk.DestinationWithMiddleware(
-		&Destination{httpClient: httpClient},
-		sdk.DefaultDestinationMiddleware()...,
-	)
+	return &Destination{httpClient: httpClient}
+}
+
+func New() sdk.Destination {
+	return sdk.DestinationWithMiddleware(newDestination(), sdk.DefaultDestinationMiddleware()...)
 }
 
 func (d *Destination) Parameters() map[string]sdk.Parameter {
@@ -80,37 +82,10 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 		}
 	}
 
-	// Configure the creds for the client
-	var cfgOptions []func(*config.LoadOptions) error
-	cfgOptions = append(cfgOptions, config.WithRegion(d.config.AWSRegion))
-	cfgOptions = append(cfgOptions, config.WithCredentialsProvider(
-		credentials.NewStaticCredentialsProvider(
-			d.config.AWSAccessKeyID,
-			d.config.AWSSecretAccessKey,
-			"")))
-	cfgOptions = append(cfgOptions, config.WithHTTPClient(d.httpClient))
-
-	if d.config.AWSURL != "" {
-		cfgOptions = append(cfgOptions, config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(func(_, _ string, _ ...interface{}) (aws.Endpoint, error) {
-			return aws.Endpoint{
-				PartitionID:       "aws",
-				URL:               d.config.AWSURL,
-				SigningRegion:     d.config.AWSRegion,
-				HostnameImmutable: true,
-			}, nil
-		},
-		)))
-	}
-
-	awsCfg, err := config.LoadDefaultConfig(ctx,
-		cfgOptions...,
-	)
+	d.client, err = newClient(ctx, d.httpClient, d.config.Config)
 	if err != nil {
-		return fmt.Errorf("failed to load aws config with given credentials : %w", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
-	sdk.Logger(ctx).Info().Msg("loaded destination aws configuration")
-
-	d.client = kinesis.NewFromConfig(awsCfg)
 
 	if d.config.UseMultiStreamMode {
 		d.recordWriter = &multiStreamWriter{destination: d}
@@ -189,7 +164,7 @@ func (d *Destination) createPutRequestInput(
 	}
 
 	return &kinesis.PutRecordsInput{
-		StreamARN: &d.config.StreamARN,
+		StreamARN: &streamARN,
 		Records:   entries,
 	}, nil
 }
@@ -261,7 +236,7 @@ func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (in
 
 		output, err := m.destination.client.PutRecords(ctx, req)
 		if err != nil {
-			return written, fmt.Errorf("failed to put %v records into %s: %w", len(req.Records), *req.StreamName, err)
+			return written, fmt.Errorf("failed to put %v records: %w", len(req.Records), err)
 		}
 
 		for _, rec := range output.Records {
@@ -277,4 +252,37 @@ func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (in
 
 	sdk.Logger(ctx).Debug().Msgf("wrote %s records to destination", strconv.Itoa(written))
 	return written, nil
+}
+
+func newClient(ctx context.Context, httpClient *http.Client, cfg common.Config) (*kinesis.Client, error) {
+	var cfgOptions []func(*config.LoadOptions) error
+	cfgOptions = append(cfgOptions, config.WithRegion(cfg.AWSRegion))
+	cfgOptions = append(cfgOptions, config.WithCredentialsProvider(
+		credentials.NewStaticCredentialsProvider(
+			cfg.AWSAccessKeyID,
+			cfg.AWSSecretAccessKey,
+			"")))
+	cfgOptions = append(cfgOptions, config.WithHTTPClient(httpClient))
+
+	if cfg.AWSURL != "" {
+		cfgOptions = append(cfgOptions, config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(func(_, _ string, _ ...interface{}) (aws.Endpoint, error) {
+			return aws.Endpoint{
+				PartitionID:       "aws",
+				URL:               cfg.AWSURL,
+				SigningRegion:     cfg.AWSRegion,
+				HostnameImmutable: true,
+			}, nil
+		},
+		)))
+	}
+
+	awsCfg, err := config.LoadDefaultConfig(ctx,
+		cfgOptions...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load aws config with given credentials : %w", err)
+	}
+	sdk.Logger(ctx).Info().Msg("loaded destination aws configuration")
+
+	return kinesis.NewFromConfig(awsCfg), nil
 }
