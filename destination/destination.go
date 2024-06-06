@@ -172,7 +172,7 @@ func (d *Destination) createPutRequestInput(ctx context.Context, records []sdk.R
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
 	req, err := d.createPutRequestInput(ctx, records)
 	if err != nil {
-		return 0, fmt.Errorf("failed to create put request: %w", err)
+		return 0, fmt.Errorf("failed to create put records request: %w", err)
 	}
 
 	var written int
