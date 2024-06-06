@@ -34,6 +34,7 @@ By default the partition key will consist of the record key. If the record key e
 If given a partition key go template, the key will be generated from the given template, with the record data as the main data context.
 
 
+
 ### Configuration
 
 | name                       | description                                | required | default value |
@@ -45,5 +46,7 @@ If given a partition key go template, the key will be generated from the given t
 | `streamName`     | The AWS Kinesis stream name | false     | ""            |
 | `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
 | `partitionKeyTemplate`  | The go template that will be used to generate partition keys. By default empty, which will generate partition keys from the record key string representation.    | false     | ""            |
+| `useMultiStreamMode`  | Allows the destination to write to multiple streams. If set to true, by default the destination will use the streamARN from the opencdc.collection metadata field. If no collection is found, the destination will use the StreamARN parameter as the last resort. Use StreamARNTemplate to customise how the streamARN is parsed from the record. | false     | false           |
+| `streamARNTemplate`  | The go template that will be used to parse the streamARN. The template will be given an sdk.Record as the main data context. | false     | ""            |
 
 [Here's](./destination/pipeline.example.yaml) an example of a complete configuration pipeline for a Kinesis destination connector. 

@@ -53,10 +53,22 @@ func (Config) Parameters() map[string]sdk.Parameter {
 				sdk.ValidationRequired{},
 			},
 		},
+		"streamARNTemplate": {
+			Default:     "",
+			Description: "streamARNTemplate allows the destination to use a custom go template to parse the streamARN. The template will be given an sdk.Record as the main data context.",
+			Type:        sdk.ParameterTypeString,
+			Validations: []sdk.Validation{},
+		},
 		"streamName": {
 			Default:     "",
 			Description: "streamName is the name of the Kinesis Data Stream",
 			Type:        sdk.ParameterTypeString,
+			Validations: []sdk.Validation{},
+		},
+		"useMultiStreamMode": {
+			Default:     "false",
+			Description: "useMultiStreamMode allows the destination to write to multiple streams. If set to true, by default the destination will use the streamARN from the opencdc.collection metadata field. If no collection is found, the destination will use the StreamARN parameter as the last resort. Use StreamARNTemplate to customise how the streamARN is parsed from the record.",
+			Type:        sdk.ParameterTypeBool,
 			Validations: []sdk.Validation{},
 		},
 	}

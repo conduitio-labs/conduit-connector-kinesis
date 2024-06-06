@@ -38,6 +38,8 @@ type Destination struct {
 	// client is the Client for the AWS Kinesis API
 	client *kinesis.Client
 
+	recordWriter recordWriter
+
 	// partitionKeyTempl is the parsed template given from the
 	// PartitionKeyTemplate configuration parameter. If none given
 	// will be set to nil.
@@ -47,6 +49,9 @@ type Destination struct {
 	// We need a custom one so that we can cleanup leaking http connections on
 	// the teardown method.
 	httpClient *http.Client
+
+	// streamARNParser is the parser used to parse the streamARN from a record.
+	streamARNParser streamARNParser
 }
 
 func New() sdk.Destination {
@@ -106,6 +111,23 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 	sdk.Logger(ctx).Info().Msg("loaded destination aws configuration")
 
 	d.client = kinesis.NewFromConfig(awsCfg)
+
+	if d.config.UseMultiStreamMode {
+		d.recordWriter = &multiStreamARNWriter{destination: d}
+
+		// the default behaviour is to use the streamARN from the
+		// opencdc.collection metadata field
+		d.streamARNParser = &fromMetadataParser{defaultStreamARN: d.config.StreamARN}
+
+		if d.config.StreamARNTemplate != "" {
+			d.streamARNParser, err = newFromTemplateParser(d.config.StreamARNTemplate)
+			if err != nil {
+				return fmt.Errorf("failed to create streamARN parser: %w", err)
+			}
+		}
+	} else {
+		d.recordWriter = &singleStreamARNWriter{destination: d}
+	}
 
 	return nil
 }
@@ -169,14 +191,36 @@ func (d *Destination) createPutRequestInput(ctx context.Context, records []sdk.R
 	}, nil
 }
 
-func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	req, err := d.createPutRequestInput(ctx, records)
+func (d *Destination) Write(ctx context.Context, records []sdk.Record) (written int, err error) {
+	if written, err = d.recordWriter.Write(ctx, records); err != nil {
+		return written, fmt.Errorf("failed to write records: %w", err)
+	}
+
+	return written, nil
+}
+
+func (d *Destination) Teardown(ctx context.Context) error {
+	d.httpClient.CloseIdleConnections()
+	sdk.Logger(ctx).Info().Msg("closed all httpClient unused connections")
+	return nil
+}
+
+type recordWriter interface {
+	Write(ctx context.Context, records []sdk.Record) (int, error)
+}
+
+type singleStreamARNWriter struct {
+	destination *Destination
+}
+
+func (s *singleStreamARNWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
+	req, err := s.destination.createPutRequestInput(ctx, records)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create put records request: %w", err)
 	}
 
 	var written int
-	output, err := d.client.PutRecords(ctx, req)
+	output, err := s.destination.client.PutRecords(ctx, req)
 	if err != nil {
 		return written, fmt.Errorf("failed to put %v records into %s: %w", len(req.Records), *req.StreamName, err)
 	}
@@ -192,8 +236,36 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 	return written, nil
 }
 
-func (d *Destination) Teardown(ctx context.Context) error {
-	d.httpClient.CloseIdleConnections()
-	sdk.Logger(ctx).Info().Msg("closed all httpClient unused connections")
-	return nil
+type multiStreamARNWriter struct {
+	destination *Destination
+}
+
+func (m *multiStreamARNWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
+	batches, err := parseBatches(records, m.destination.streamARNParser)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse batches: %w", err)
+	}
+
+	var written int
+	for _, batch := range batches {
+		req, err := m.destination.createPutRequestInput(ctx, batch.records)
+		if err != nil {
+			return written, fmt.Errorf("failed to create put records request: %w", err)
+		}
+
+		output, err := m.destination.client.PutRecords(ctx, req)
+		if err != nil {
+			return written, fmt.Errorf("failed to put %v records into %s: %w", len(req.Records), *req.StreamName, err)
+		}
+
+		for _, rec := range output.Records {
+			if rec.ErrorCode != nil {
+				return written, fmt.Errorf("error when attempting to insert record %s: %s", *rec.ErrorCode, *rec.ErrorMessage)
+			}
+			written++
+		}
+	}
+
+	sdk.Logger(ctx).Debug().Msgf("wrote %s records to destination", strconv.Itoa(written))
+	return written, nil
 }
