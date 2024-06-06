@@ -41,7 +41,7 @@ If given a partition key go template, the key will be generated from the given t
 | `aws.accessKeyId`     | Access Key ID associated with your AWS resources | true     | ""            |
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
-| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
+| `aws.url`     | The URL for AWS (useful when testing the connector with localstack). | false     | ""            |
 | `streamName`     | The AWS Kinesis stream name | false     | ""            |
 | `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
 | `partitionKeyTemplate`  | The go template that will be used to generate partition keys. By default empty, which will generate partition keys from the record key string representation.    | false     | ""            |
