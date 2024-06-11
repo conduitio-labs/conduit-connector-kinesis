@@ -49,7 +49,7 @@ func TestWrite_MultiStream(t *testing.T) {
 	con := newDestination()
 
 	// we make sure that the client is independent from the destination
-	testClient, err := newClient(ctx, &http.Client{}, common.Config{
+	testClient, err := common.NewClient(ctx, &http.Client{}, common.Config{
 		AWSRegion:          "us-east-1",
 		AWSAccessKeyID:     "accesskeymock",
 		AWSSecretAccessKey: "accesssecretmock",

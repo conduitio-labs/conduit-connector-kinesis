@@ -23,10 +23,9 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/oklog/ulid/v2"
 	cmap "github.com/orcaman/concurrent-map/v2"
@@ -90,39 +89,12 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 	}
 	sdk.Logger(ctx).Info().Msg("parsed configuration")
 
-	// Configure the creds for the client
-	var cfgOptions []func(*config.LoadOptions) error
-
-	cfgOptions = append(cfgOptions, config.WithHTTPClient(s.httpClient))
-	cfgOptions = append(cfgOptions, config.WithRegion(s.config.AWSRegion))
-	cfgOptions = append(cfgOptions, config.WithCredentialsProvider(
-		credentials.NewStaticCredentialsProvider(
-			s.config.AWSAccessKeyID,
-			s.config.AWSSecretAccessKey,
-			"")))
-
-	if s.config.AWSURL != "" {
-		resolver := aws.EndpointResolverWithOptionsFunc(func(_, _ string, _ ...interface{}) (aws.Endpoint, error) {
-			return aws.Endpoint{
-				PartitionID:       "aws",
-				URL:               s.config.AWSURL,
-				SigningRegion:     s.config.AWSRegion,
-				HostnameImmutable: true,
-			}, nil
-		})
-		withResolverOpt := config.WithEndpointResolverWithOptions(resolver)
-
-		cfgOptions = append(cfgOptions, withResolverOpt)
-	}
-
-	awsCfg, err := config.LoadDefaultConfig(ctx, cfgOptions...)
+	s.client, err = common.NewClient(ctx, s.httpClient, s.config.Config)
 	if err != nil {
-		return fmt.Errorf("failed to load aws config with given credentials : %w", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
-	sdk.Logger(ctx).Info().Msg("loaded source aws configuration")
 
-	s.client = kinesis.NewFromConfig(awsCfg)
-	sdk.Logger(ctx).Info().Msg("created kinesis client")
+	sdk.Logger(ctx).Info().Msg("created source client")
 
 	return nil
 }

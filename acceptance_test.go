@@ -20,11 +20,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/google/uuid"
 	"github.com/matryer/is"
@@ -84,27 +82,15 @@ func setRandomStreamARNToCfg(t *testing.T, cfg map[string]string) {
 	httpClient := &http.Client{}
 	defer httpClient.CloseIdleConnections()
 
-	awsCfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion(cfg["aws.region"]),
-		config.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(
-				cfg["aws.accessKeyId"],
-				cfg["aws.secretAccessKey"],
-				"")),
-		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(func(_, _ string, _ ...interface{}) (aws.Endpoint, error) {
-			return aws.Endpoint{
-				PartitionID:       "aws",
-				URL:               "http://localhost:4566",
-				SigningRegion:     cfg["aws.region"],
-				HostnameImmutable: true,
-			}, nil
-		})),
-		config.WithHTTPClient(httpClient),
-	)
-	is.NoErr(err)
-
 	streamName := "acceptance_" + uuid.NewString()[0:8]
-	client := kinesis.NewFromConfig(awsCfg)
+	client, err := common.NewClient(ctx, httpClient, common.Config{
+		AWSAccessKeyID:     cfg["aws.accessKeyId"],
+		AWSSecretAccessKey: cfg["aws.secretAccessKey"],
+		AWSRegion:          cfg["aws.region"],
+		StreamName:         streamName,
+		AWSURL:             "http://localhost:4566",
+	})
+	is.NoErr(err)
 
 	// Acceptance tests are susceptible to wrong record order. By default
 	// kinesis writes to multiple shards, making difficult debugging whether the
