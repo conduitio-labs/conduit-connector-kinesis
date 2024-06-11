@@ -76,6 +76,11 @@ func TestWrite_MultiStream(t *testing.T) {
 	err = con.Open(ctx)
 	is.NoErr(err)
 
+	defer func() {
+		err := con.Teardown(ctx)
+		is.NoErr(err)
+	}()
+
 	var recs []sdk.Record
 	recs1 := testRecords(t)
 	recs = append(recs, recs1...)
