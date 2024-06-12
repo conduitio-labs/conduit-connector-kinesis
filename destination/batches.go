@@ -34,7 +34,7 @@ func (p *fromColFieldParser) ParseStreamName(r sdk.Record) (string, error) {
 	streamName, err := r.Metadata.GetCollection()
 	if err != nil {
 		//nolint:nilerr // err is not nil if metadata is not set, so we can safely ignore the error
-		return "", nil
+		return "", fmt.Errorf("streamName not found in record %s", string(r.Key.Bytes()))
 	}
 
 	return streamName, nil
@@ -42,6 +42,7 @@ func (p *fromColFieldParser) ParseStreamName(r sdk.Record) (string, error) {
 
 // fromTemplateParser parses the streamName from the given go template.
 type fromTemplateParser struct {
+	contents string
 	template *template.Template
 }
 
@@ -51,13 +52,20 @@ func newFromTemplateParser(templateContents string) (*fromTemplateParser, error)
 		return nil, fmt.Errorf("failed to parse streamName template: %w", err)
 	}
 
-	return &fromTemplateParser{template: t}, nil
+	return &fromTemplateParser{contents: templateContents, template: t}, nil
 }
 
 func (p *fromTemplateParser) ParseStreamName(r sdk.Record) (string, error) {
 	var sb strings.Builder
 	if err := p.template.Execute(&sb, r); err != nil {
 		return "", fmt.Errorf("failed to parse streamName from template: %w", err)
+	}
+
+	if sb.Len() == 0 {
+		return "", fmt.Errorf(
+			"streamName not found in record %s from template %s",
+			string(r.Key.Bytes()), p.contents,
+		)
 	}
 
 	return sb.String(), nil

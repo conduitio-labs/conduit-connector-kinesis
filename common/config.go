@@ -21,10 +21,6 @@ type Config struct {
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
 	// AWSRegion is the region where the stream is hosted
 	AWSRegion string `json:"aws.region" validate:"required"`
-
-	// StreamName is the name of the Kinesis Data Stream.
-	StreamName string `json:"streamName"`
-
 	// AWSURL is the URL for endpoint override - testing/dry-run only
 	AWSURL string `json:"aws.url"`
 }

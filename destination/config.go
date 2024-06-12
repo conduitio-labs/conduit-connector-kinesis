@@ -21,6 +21,12 @@ type Config struct {
 	// Config includes parameters that are the same in the source and destination.
 	common.Config
 
+	// StreamName is the name of the Kinesis Data Stream. It can contain a
+	// [Go template](https://pkg.go.dev/text/template) that will be executed
+	// for each record to determine the stream name. By default, the stream
+	// name is the value of the `opencdc.collection` metadata field.
+	StreamName string `json:"streamName"`
+
 	// PartitionKeyTemplate accepts a go template as an argument, with the
 	// record being written as the main data context. If an empty template is
 	// passed, the partition key will adopt the record key string value. If the
