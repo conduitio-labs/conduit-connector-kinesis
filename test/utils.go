@@ -28,8 +28,6 @@ import (
 	"github.com/matryer/is"
 )
 
-// shared test utils across tests
-
 func GetRecords(
 	ctx context.Context, is *is.I,
 	streamName string, client *kinesis.Client,
@@ -65,8 +63,9 @@ func GetRecords(
 	return recs
 }
 
-func SetupTestStream(ctx context.Context, is *is.I, client *kinesis.Client) (string, func()) {
-	streamName := "stream_" + strings.Replace(uuid.NewString()[:8], "-", "", -1)
+// SetupTestStream creates a test stream and returns the name of the stream and a function to delete the stream
+func SetupTestStream(ctx context.Context, is *is.I, client *kinesis.Client) (streamName string, cleanup func()) {
+	streamName = "stream_" + strings.Replace(uuid.NewString()[:8], "-", "", -1)
 	_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
 		StreamName: &streamName,
 	})

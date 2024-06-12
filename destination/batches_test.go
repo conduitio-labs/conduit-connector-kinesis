@@ -25,7 +25,7 @@ import (
 func TestParseBatches(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		is := is.New(t)
-		parser := &fromColFieldParser{defaultStreamName: "test-stream-name"}
+		parser := &fromColFieldParser{}
 
 		batches, err := parseBatches([]sdk.Record{}, parser)
 		is.NoErr(err)
@@ -35,16 +35,16 @@ func TestParseBatches(t *testing.T) {
 
 	t.Run("only one stream given using fromColFieldParser", func(t *testing.T) {
 		is := is.New(t)
-		parser := &fromColFieldParser{defaultStreamName: "test-stream-name"}
+		parser := &fromColFieldParser{}
 
 		var records []sdk.Record
-		recs1 := testRecords(t)
+		recs1 := testRecordsStreamOnColField(t, "test-stream-name-1")
 		records = append(records, recs1...)
 
 		recs2 := testRecordsStreamOnColField(t, "test-stream-name-2")
 		records = append(records, recs2...)
 
-		recs3 := testRecords(t)
+		recs3 := testRecordsStreamOnColField(t, "test-stream-name-3")
 		records = append(records, recs3...)
 
 		batches, err := parseBatches(records, parser)
@@ -53,13 +53,13 @@ func TestParseBatches(t *testing.T) {
 		is.Equal(3, len(batches))
 
 		is.Equal(recs1, batches[0].records)
-		is.Equal("test-stream-name", batches[0].streamName)
+		is.Equal("test-stream-name-1", batches[0].streamName)
 
 		is.Equal(recs2, batches[1].records)
 		is.Equal("test-stream-name-2", batches[1].streamName)
 
 		is.Equal(recs3, batches[2].records)
-		is.Equal("test-stream-name", batches[2].streamName)
+		is.Equal("test-stream-name-3", batches[2].streamName)
 	})
 
 	t.Run("different streams given using fromTemplateParser", func(t *testing.T) {

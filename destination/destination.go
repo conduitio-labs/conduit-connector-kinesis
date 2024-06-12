@@ -17,10 +17,12 @@ package destination
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
@@ -100,17 +102,33 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 }
 
 func (d *Destination) Open(ctx context.Context) error {
-	// DescribeStream to know that the stream ARN is valid and usable, ie test connection
-	_, err := d.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-		StreamName: &d.config.StreamName,
-	})
-	if err != nil {
-		return fmt.Errorf("error when attempting to test connection to stream: %w", err)
+	if d.config.StreamName == "" {
+		// destination is in multicollection mode, so we don't need to wait for any
+		// stream to be ready to be used
+		return nil
 	}
 
-	sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+	for i := 0; i < 4; i++ {
+		streamData, err := d.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
+			StreamName: &d.config.StreamName,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to describe stream: %w", err)
+		}
 
-	return nil
+		switch status := streamData.StreamDescription.StreamStatus; status {
+		case types.StreamStatusCreating, types.StreamStatusUpdating:
+		case types.StreamStatusDeleting:
+			return fmt.Errorf("stream %s is being deleted", d.config.StreamName)
+		case types.StreamStatusActive:
+			sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+			return nil
+		}
+
+		time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second)
+	}
+
+	return fmt.Errorf("timed out waiting for stream %s to be ready", d.config.StreamName)
 }
 
 func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string, error) {
@@ -162,11 +180,7 @@ func (d *Destination) createPutRequestInput(
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (written int, err error) {
-	if written, err = d.recordWriter.Write(ctx, records); err != nil {
-		return written, fmt.Errorf("failed to write records: %w", err)
-	}
-
-	return written, nil
+	return d.recordWriter.Write(ctx, records) //nolint:errcheck // record writer already wraps errors properly
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {

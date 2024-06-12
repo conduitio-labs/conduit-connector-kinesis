@@ -53,7 +53,7 @@ func TestWrite_MultiStream(t *testing.T) {
 	stream3, cleanup3 := testutils.SetupTestStream(ctx, is, testClient)
 	defer cleanup3()
 
-	err = con.Configure(ctx, testutils.GetTestConfig(stream1))
+	err = con.Configure(ctx, testutils.GetTestConfig("")) // streamName is fetched from `opencdc.collection` field
 	is.NoErr(err)
 
 	err = con.Open(ctx)
