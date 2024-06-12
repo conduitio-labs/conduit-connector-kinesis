@@ -101,16 +101,16 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 
 func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 	// DescribeStream to know that the stream ARN is valid and usable, ie test connection
-	_, err := s.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-		StreamARN: &s.config.StreamARN,
+	streamOutput, err := s.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
+		StreamName: &s.config.StreamName,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to test connection to stream: %w", err)
 	}
-	sdk.Logger(ctx).Info().Str("streamARN", s.config.StreamARN).Msg("stream valid")
+	sdk.Logger(ctx).Info().Str("streamName", s.config.StreamName).Msg("stream valid")
 
 	consumerResponse, err := s.client.RegisterStreamConsumer(ctx, &kinesis.RegisterStreamConsumerInput{
-		StreamARN:    &s.config.StreamARN,
+		StreamARN:    streamOutput.StreamDescription.StreamARN,
 		ConsumerName: aws.String("conduit-connector-kinesis-source-" + ulid.Make().String()),
 	})
 	if err != nil {
@@ -142,9 +142,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) error {
 	for count := 1; count <= 5; count++ {
 		describedConsumer, err := s.client.DescribeStreamConsumer(ctx, &kinesis.DescribeStreamConsumerInput{
-			ConsumerARN:  consumer.ConsumerARN,
-			ConsumerName: consumer.ConsumerName,
-			StreamARN:    &s.config.StreamARN,
+			ConsumerARN: consumer.ConsumerARN,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to describe stream consumer: %w", err)
@@ -188,7 +186,6 @@ func (s *Source) Teardown(ctx context.Context) error {
 	if s.consumerARN != nil {
 		_, err := s.client.DeregisterStreamConsumer(ctx, &kinesis.DeregisterStreamConsumerInput{
 			ConsumerARN: s.consumerARN,
-			StreamARN:   &s.config.StreamARN,
 		})
 		if err != nil {
 			return fmt.Errorf(
@@ -333,7 +330,7 @@ func (s *Source) subscribeShards(ctx context.Context, position sdk.Position) err
 	logEvt.Msg("starting position")
 
 	listShardsResponse, err := s.client.ListShards(ctx, &kinesis.ListShardsInput{
-		StreamARN: &s.config.StreamARN,
+		StreamName: &s.config.StreamName,
 	})
 	if err != nil {
 		return fmt.Errorf("error retrieving kinesis shards: %w", err)

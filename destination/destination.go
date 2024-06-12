@@ -48,8 +48,8 @@ type Destination struct {
 	// the teardown method.
 	httpClient *http.Client
 
-	// streamARNParser is the parser used to parse the streamARN from a record.
-	streamARNParser streamARNParser
+	// streamNameParser is the parser used to parse the streamName from a record.
+	streamNameParser streamNameParser
 }
 
 func newDestination() *Destination {
@@ -79,19 +79,20 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 		}
 	}
 
-	if d.config.UseMultiStreamMode {
+	if isGoTemplate(d.config.StreamName) {
 		d.recordWriter = &multiStreamWriter{destination: d}
 
-		// the default behaviour is to use the streamARN from the
-		// opencdc.collection metadata field
-		d.streamARNParser = &fromColFieldParser{defaultStreamARN: d.config.StreamARN}
-
-		if d.config.StreamARNTemplate != "" {
-			d.streamARNParser, err = newFromTemplateParser(d.config.StreamARNTemplate)
-			if err != nil {
-				return fmt.Errorf("failed to create streamARN parser: %w", err)
-			}
+		d.streamNameParser, err = newFromTemplateParser(d.config.StreamName)
+		if err != nil {
+			return fmt.Errorf("failed to create streamName parser: %w", err)
 		}
+	} else if d.config.StreamName == "" {
+		d.recordWriter = &multiStreamWriter{destination: d}
+
+		// the default behaviour is to get the streamName from the
+		// opencdc.collection metadata field
+		d.streamNameParser = &fromColFieldParser{defaultStreamName: d.config.StreamName}
+
 	} else {
 		d.recordWriter = &singleStreamWriter{destination: d}
 	}
@@ -107,7 +108,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 func (d *Destination) Open(ctx context.Context) error {
 	// DescribeStream to know that the stream ARN is valid and usable, ie test connection
 	_, err := d.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-		StreamARN: &d.config.StreamARN,
+		StreamName: &d.config.StreamName,
 	})
 	if err != nil {
 		return fmt.Errorf("error when attempting to test connection to stream: %w", err)
@@ -126,7 +127,7 @@ func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string,
 		if len(partitionKey) > 256 {
 			partitionKey = partitionKey[:256]
 			sdk.Logger(ctx).Warn().
-				Msg("using a record key greater than 256 characters as a partition key; trimming it down")
+				Msg("detected record key greater than 256 characters as a partition key; trimming it down")
 		}
 
 		return partitionKey, nil
@@ -143,7 +144,7 @@ func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string,
 func (d *Destination) createPutRequestInput(
 	ctx context.Context,
 	records []sdk.Record,
-	streamARN string,
+	streamName string,
 ) (*kinesis.PutRecordsInput, error) {
 	entries := make([]types.PutRecordsRequestEntry, 0, len(records))
 
@@ -161,8 +162,8 @@ func (d *Destination) createPutRequestInput(
 	}
 
 	return &kinesis.PutRecordsInput{
-		StreamARN: &streamARN,
-		Records:   entries,
+		StreamName: &streamName,
+		Records:    entries,
 	}, nil
 }
 
@@ -189,7 +190,7 @@ type singleStreamWriter struct {
 }
 
 func (s *singleStreamWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	req, err := s.destination.createPutRequestInput(ctx, records, s.destination.config.StreamARN)
+	req, err := s.destination.createPutRequestInput(ctx, records, s.destination.config.StreamName)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create put records request: %w", err)
 	}
@@ -219,14 +220,14 @@ type multiStreamWriter struct {
 }
 
 func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	batches, err := parseBatches(records, m.destination.streamARNParser)
+	batches, err := parseBatches(records, m.destination.streamNameParser)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse batches: %w", err)
 	}
 
 	var written int
 	for _, batch := range batches {
-		req, err := m.destination.createPutRequestInput(ctx, batch.records, batch.streamARN)
+		req, err := m.destination.createPutRequestInput(ctx, batch.records, batch.streamName)
 		if err != nil {
 			return written, fmt.Errorf("failed to create put records request: %w", err)
 		}
@@ -249,4 +250,8 @@ func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (in
 
 	sdk.Logger(ctx).Debug().Msgf("wrote %s records to destination", strconv.Itoa(written))
 	return written, nil
+}
+
+func isGoTemplate(template string) bool {
+	return strings.HasPrefix(template, "{{") && strings.HasSuffix(template, "}}")
 }

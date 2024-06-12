@@ -20,8 +20,7 @@ The Source connector for AWS Kinesis opens subscriptions to each of the availabl
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
 | `aws.url`     | The URL for AWS (useful when testing the connector with localstack). | false     | ""            |
-| `streamName`     | The AWS Kinesis stream name | false     | ""            |
-| `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
+| `streamName`     | The AWS Kinesis stream name | true     | ""            |
 | `startFromLatest`     | Set this value to true to ignore any records already in the stream  | false     | false           |
 
 [Here's](./source/pipeline.example.yaml) an example of a complete configuration pipeline for a Kinesis source connector. 
@@ -43,10 +42,7 @@ If given a partition key go template, the key will be generated from the given t
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
 | `aws.url`     | The URL for AWS (useful when testing the connector with localstack). | false     | ""            |
-| `streamName`     | The AWS Kinesis stream name | false     | ""            |
-| `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
+| `streamName`     | The AWS Kinesis stream name | true     | ""            |
 | `partitionKeyTemplate`  | The go template that will be used to generate partition keys. By default empty, which will generate partition keys from the record key string representation.    | false     | ""            |
-| `useMultiStreamMode`  | Allows the destination to write to multiple streams. If set to true, by default the destination will use the streamARN from the opencdc.collection metadata field. If no collection is found, the destination will use the StreamARN parameter as the last resort. Use StreamARNTemplate to customise how the streamARN is parsed from the record. | false     | false           |
-| `streamARNTemplate`  | The go template that will be used to parse the streamARN. The template will be given an sdk.Record as the main data context. | false     | ""            |
 
 [Here's](./destination/pipeline.example.yaml) an example of a complete configuration pipeline for a Kinesis destination connector. 

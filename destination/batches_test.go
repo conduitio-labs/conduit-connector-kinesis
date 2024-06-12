@@ -25,7 +25,7 @@ import (
 func TestParseBatches(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		is := is.New(t)
-		parser := &fromColFieldParser{defaultStreamARN: "test-stream-arn"}
+		parser := &fromColFieldParser{defaultStreamName: "test-stream-name"}
 
 		batches, err := parseBatches([]sdk.Record{}, parser)
 		is.NoErr(err)
@@ -35,13 +35,13 @@ func TestParseBatches(t *testing.T) {
 
 	t.Run("only one stream given using fromColFieldParser", func(t *testing.T) {
 		is := is.New(t)
-		parser := &fromColFieldParser{defaultStreamARN: "test-stream-arn"}
+		parser := &fromColFieldParser{defaultStreamName: "test-stream-name"}
 
 		var records []sdk.Record
 		recs1 := testRecords(t)
 		records = append(records, recs1...)
 
-		recs2 := testRecordsStreamOnColField(t, "test-stream-arn-2")
+		recs2 := testRecordsStreamOnColField(t, "test-stream-name-2")
 		records = append(records, recs2...)
 
 		recs3 := testRecords(t)
@@ -53,29 +53,29 @@ func TestParseBatches(t *testing.T) {
 		is.Equal(3, len(batches))
 
 		is.Equal(recs1, batches[0].records)
-		is.Equal("test-stream-arn", batches[0].streamARN)
+		is.Equal("test-stream-name", batches[0].streamName)
 
 		is.Equal(recs2, batches[1].records)
-		is.Equal("test-stream-arn-2", batches[1].streamARN)
+		is.Equal("test-stream-name-2", batches[1].streamName)
 
 		is.Equal(recs3, batches[2].records)
-		is.Equal("test-stream-arn", batches[2].streamARN)
+		is.Equal("test-stream-name", batches[2].streamName)
 	})
 
 	t.Run("different streams given using fromTemplateParser", func(t *testing.T) {
 		is := is.New(t)
 
-		parser, err := newFromTemplateParser(`{{ index .Metadata "streamARN" }}`)
+		parser, err := newFromTemplateParser(`{{ index .Metadata "streamName" }}`)
 		is.NoErr(err)
 
 		var records []sdk.Record
-		recs1 := testRecordsStreamOnMetadata(t, "test-stream-arn-1")
+		recs1 := testRecordsStreamOnMetadata(t, "test-stream-name-1")
 		records = append(records, recs1...)
 
-		recs2 := testRecordsStreamOnMetadata(t, "test-stream-arn-2")
+		recs2 := testRecordsStreamOnMetadata(t, "test-stream-name-2")
 		records = append(records, recs2...)
 
-		recs3 := testRecordsStreamOnMetadata(t, "test-stream-arn-3")
+		recs3 := testRecordsStreamOnMetadata(t, "test-stream-name-3")
 		records = append(records, recs3...)
 
 		batches, err := parseBatches(records, parser)
@@ -84,13 +84,13 @@ func TestParseBatches(t *testing.T) {
 		is.Equal(3, len(batches))
 
 		is.Equal(recs1, batches[0].records)
-		is.Equal("test-stream-arn-1", batches[0].streamARN)
+		is.Equal("test-stream-name-1", batches[0].streamName)
 
 		is.Equal(recs2, batches[1].records)
-		is.Equal("test-stream-arn-2", batches[1].streamARN)
+		is.Equal("test-stream-name-2", batches[1].streamName)
 
 		is.Equal(recs3, batches[2].records)
-		is.Equal("test-stream-arn-3", batches[2].streamARN)
+		is.Equal("test-stream-name-3", batches[2].streamName)
 	})
 }
 
@@ -107,21 +107,21 @@ func testRecords(t *testing.T) []sdk.Record {
 	return records
 }
 
-func testRecordsStreamOnColField(t *testing.T, streamARN string) []sdk.Record {
+func testRecordsStreamOnColField(t *testing.T, streamName string) []sdk.Record {
 	var testDriver sdk.ConfigurableAcceptanceTestDriver
 
 	var records []sdk.Record
-
 	for range rand.Intn(3) + 1 {
 		rec := testDriver.GenerateRecord(t, sdk.OperationCreate)
+		rec.Metadata.SetCollection(streamName)
+
 		records = append(records, rec)
-		rec.Metadata.SetCollection(streamARN)
 	}
 
 	return records
 }
 
-func testRecordsStreamOnMetadata(t *testing.T, streamARN string) []sdk.Record {
+func testRecordsStreamOnMetadata(t *testing.T, streamName string) []sdk.Record {
 	var testDriver sdk.ConfigurableAcceptanceTestDriver
 
 	var records []sdk.Record
@@ -129,7 +129,7 @@ func testRecordsStreamOnMetadata(t *testing.T, streamARN string) []sdk.Record {
 	for range rand.Intn(3) + 1 {
 		rec := testDriver.GenerateRecord(t, sdk.OperationCreate)
 		records = append(records, rec)
-		rec.Metadata["streamARN"] = streamARN
+		rec.Metadata["streamName"] = streamName
 	}
 
 	return records

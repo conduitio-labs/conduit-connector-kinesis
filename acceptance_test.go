@@ -20,9 +20,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
+	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/google/uuid"
 	"github.com/matryer/is"
@@ -30,12 +32,7 @@ import (
 )
 
 func TestAcceptance(t *testing.T) {
-	cfg := map[string]string{
-		"aws.region":          "us-east-1",
-		"aws.accessKeyId":     "accesskeymock",
-		"aws.secretAccessKey": "accesssecretmock",
-		"aws.url":             "http://localhost:4566",
-	}
+	cfg := testutils.GetTestConfig("") // streamName is set in testutils.SetupTestStream
 
 	testDriver := sdk.ConfigurableAcceptanceTestDriver{
 		Config: sdk.ConfigurableAcceptanceTestDriverConfig{
@@ -45,7 +42,10 @@ func TestAcceptance(t *testing.T) {
 			DestinationConfig: cfg,
 			GenerateDataType:  sdk.GenerateRawData,
 			BeforeTest: func(t *testing.T) {
-				setRandomStreamARNToCfg(t, cfg)
+				setRandomStreamNameToCfg(t, cfg)
+			},
+			AfterTest: func(t *testing.T) {
+				cleanupAcceptanceTestStream(t, cfg)
 			},
 			Skip: []string{
 				"TestDestination_Configure_RequiredParams",
@@ -64,17 +64,12 @@ func TestNewRandomStreamDoesntLeak(t *testing.T) {
 	// discard goroutine leak origins.
 
 	defer goleak.VerifyNone(t)
-	cfg := map[string]string{
-		"aws.region":          "us-east-1",
-		"aws.accessKeyId":     "accesskeymock",
-		"aws.secretAccessKey": "accesssecretmock",
-		"aws.url":             "http://localhost:4566",
-	}
+	cfg := testutils.GetTestConfig("")
 
-	setRandomStreamARNToCfg(t, cfg)
+	setRandomStreamNameToCfg(t, cfg)
 }
 
-func setRandomStreamARNToCfg(t *testing.T, cfg map[string]string) {
+func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 	is := is.New(t)
 
 	ctx := context.Background()
@@ -111,10 +106,36 @@ func setRandomStreamARNToCfg(t *testing.T, cfg map[string]string) {
 
 		isStreamReadyForTest := describe.StreamDescription.StreamStatus == types.StreamStatusActive
 		if isStreamReadyForTest {
-			cfg["streamARN"] = *describe.StreamDescription.StreamARN
+			cfg["streamName"] = *describe.StreamDescription.StreamName
 			break
 		}
 
 		time.Sleep(100 * time.Millisecond)
 	}
+}
+
+func cleanupAcceptanceTestStream(t *testing.T, cfg map[string]string) {
+	is := is.New(t)
+
+	ctx := context.Background()
+
+	httpClient := &http.Client{}
+	defer httpClient.CloseIdleConnections()
+
+	client, err := common.NewClient(ctx, httpClient, common.Config{
+		AWSAccessKeyID:     cfg["aws.accessKeyId"],
+		AWSSecretAccessKey: cfg["aws.secretAccessKey"],
+		AWSRegion:          cfg["aws.region"],
+		AWSURL:             "http://localhost:4566",
+	})
+	is.NoErr(err)
+
+	describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
+		StreamName: aws.String(cfg["streamName"]),
+	})
+
+	_, err = client.DeleteStream(ctx, &kinesis.DeleteStreamInput{
+		EnforceConsumerDeletion: aws.Bool(true),
+		StreamARN:               describe.StreamDescription.StreamARN,
+	})
 }
