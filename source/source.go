@@ -220,7 +220,7 @@ func (s *Source) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
+func toRecords(kinRecords []types.Record, streamName, shardID string) []sdk.Record {
 	sdkRecs := make([]sdk.Record, 0, len(kinRecords))
 
 	for _, rec := range kinRecords {
@@ -244,6 +244,7 @@ func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
 			sdk.RawData(kinPosBytes),
 			sdk.RawData(rec.Data),
 		)
+		sdkRec.Metadata.SetCollection(streamName)
 
 		sdkRecs = append(sdkRecs, sdkRec)
 	}
@@ -274,7 +275,7 @@ func (s *Source) listenEvents(ctx context.Context) {
 					eventValue := subsEvent.Value
 
 					if len(eventValue.Records) > 0 {
-						recs := toRecords(eventValue.Records, shardID)
+						recs := toRecords(eventValue.Records, s.config.StreamName, shardID)
 
 						for _, record := range recs {
 							s.buffer <- record

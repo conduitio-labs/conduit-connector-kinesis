@@ -82,7 +82,6 @@ func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 		AWSAccessKeyID:     cfg["aws.accessKeyId"],
 		AWSSecretAccessKey: cfg["aws.secretAccessKey"],
 		AWSRegion:          cfg["aws.region"],
-		StreamName:         streamName,
 		AWSURL:             "http://localhost:4566",
 	})
 	is.NoErr(err)
