@@ -133,9 +133,11 @@ func cleanupAcceptanceTestStream(t *testing.T, cfg map[string]string) {
 	describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 		StreamName: aws.String(cfg["streamName"]),
 	})
+	is.NoErr(err)
 
 	_, err = client.DeleteStream(ctx, &kinesis.DeleteStreamInput{
 		EnforceConsumerDeletion: aws.Bool(true),
 		StreamARN:               describe.StreamDescription.StreamARN,
 	})
+	is.NoErr(err)
 }

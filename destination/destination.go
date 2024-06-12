@@ -180,7 +180,7 @@ func (d *Destination) createPutRequestInput(
 }
 
 func (d *Destination) Write(ctx context.Context, records []sdk.Record) (written int, err error) {
-	return d.recordWriter.Write(ctx, records) //nolint:errcheck // record writer already wraps errors properly
+	return d.recordWriter.Write(ctx, records) //nolint:wrapcheck // record writer already wraps errors properly
 }
 
 func (d *Destination) Teardown(ctx context.Context) error {
@@ -193,7 +193,8 @@ type recordWriter interface {
 	Write(ctx context.Context, records []sdk.Record) (int, error)
 }
 
-// singleStreamWriter writes records to a single stream
+// singleStreamWriter writes records to a single stream. It will ignore the
+// `opencdc.collection` field in the record.
 type singleStreamWriter struct {
 	destination *Destination
 }

@@ -63,9 +63,9 @@ func GetRecords(
 	return recs
 }
 
-// SetupTestStream creates a test stream and returns the name of the stream and a function to delete the stream
+// SetupTestStream creates a test stream and returns the name of the stream and a function to delete the stream.
 func SetupTestStream(ctx context.Context, is *is.I, client *kinesis.Client) (streamName string, cleanup func()) {
-	streamName = "stream_" + strings.Replace(uuid.NewString()[:8], "-", "", -1)
+	streamName = "stream_" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
 	_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
 		StreamName: &streamName,
 	})

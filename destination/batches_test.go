@@ -94,19 +94,6 @@ func TestParseBatches(t *testing.T) {
 	})
 }
 
-func testRecords(t *testing.T) []sdk.Record {
-	var testDriver sdk.ConfigurableAcceptanceTestDriver
-
-	var records []sdk.Record
-
-	for range rand.Intn(3) + 1 {
-		rec := testDriver.GenerateRecord(t, sdk.OperationCreate)
-		records = append(records, rec)
-	}
-
-	return records
-}
-
 func testRecordsStreamOnColField(t *testing.T, streamName string) []sdk.Record {
 	var testDriver sdk.ConfigurableAcceptanceTestDriver
 
