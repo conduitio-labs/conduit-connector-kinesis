@@ -28,15 +28,13 @@ type streamNameParser interface {
 
 // fromColFieldParser parses the streamName from the opencdc.collection record
 // metadata field.
-type fromColFieldParser struct {
-	defaultStreamName string
-}
+type fromColFieldParser struct{}
 
 func (p *fromColFieldParser) ParseStreamName(r sdk.Record) (string, error) {
 	streamName, err := r.Metadata.GetCollection()
 	if err != nil {
 		//nolint:nilerr // err is not nil if metadata is not set, so we can safely ignore the error
-		return p.defaultStreamName, nil
+		return "", nil
 	}
 
 	return streamName, nil

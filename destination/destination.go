@@ -36,6 +36,7 @@ type Destination struct {
 	// client is the Client for the AWS Kinesis API
 	client *kinesis.Client
 
+	// recordWriter abstracts how records are written to the destination
 	recordWriter recordWriter
 
 	// partitionKeyTempl is the parsed template given from the
@@ -47,9 +48,6 @@ type Destination struct {
 	// We need a custom one so that we can cleanup leaking http connections on
 	// the teardown method.
 	httpClient *http.Client
-
-	// streamNameParser is the parser used to parse the streamName from a record.
-	streamNameParser streamNameParser
 }
 
 func newDestination() *Destination {
@@ -79,21 +77,17 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 		}
 	}
 
-	if isGoTemplate(d.config.StreamName) {
-		d.recordWriter = &multiStreamWriter{destination: d}
-
-		d.streamNameParser, err = newFromTemplateParser(d.config.StreamName)
+	switch streamName := d.config.StreamName; {
+	case isGoTemplate(streamName):
+		recordWriter, err := newMultiStreamWriterFromTemplate(d, streamName)
 		if err != nil {
 			return fmt.Errorf("failed to create streamName parser: %w", err)
 		}
-	} else if d.config.StreamName == "" {
-		d.recordWriter = &multiStreamWriter{destination: d}
 
-		// the default behaviour is to get the streamName from the
-		// opencdc.collection metadata field
-		d.streamNameParser = &fromColFieldParser{defaultStreamName: d.config.StreamName}
-
-	} else {
+		d.recordWriter = recordWriter
+	case d.config.StreamName == "":
+		d.recordWriter = newMultiStreamWriterFromOpencdcCollection(d)
+	default:
 		d.recordWriter = &singleStreamWriter{destination: d}
 	}
 
@@ -185,6 +179,7 @@ type recordWriter interface {
 	Write(ctx context.Context, records []sdk.Record) (int, error)
 }
 
+// singleStreamWriter writes records to a single stream
 type singleStreamWriter struct {
 	destination *Destination
 }
@@ -215,12 +210,31 @@ func (s *singleStreamWriter) Write(ctx context.Context, records []sdk.Record) (i
 	return written, nil
 }
 
+// multiStreamWriter writes records to multiple streams. The streamNameParser
+// is used to parse the streamName from a record. If the streamNameParser
+// returns an error, the record is not written to any stream.
 type multiStreamWriter struct {
-	destination *Destination
+	destination      *Destination
+	streamNameParser streamNameParser
+}
+
+func newMultiStreamWriterFromTemplate(destination *Destination, streamName string) (*multiStreamWriter, error) {
+	parser, err := newFromTemplateParser(streamName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create streamName parser: %w", err)
+	}
+	return &multiStreamWriter{destination: destination, streamNameParser: parser}, nil
+}
+
+func newMultiStreamWriterFromOpencdcCollection(destination *Destination) *multiStreamWriter {
+	return &multiStreamWriter{
+		destination:      destination,
+		streamNameParser: &fromColFieldParser{},
+	}
 }
 
 func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	batches, err := parseBatches(records, m.destination.streamNameParser)
+	batches, err := parseBatches(records, m.streamNameParser)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse batches: %w", err)
 	}
