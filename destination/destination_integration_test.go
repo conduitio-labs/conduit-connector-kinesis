@@ -17,12 +17,9 @@ package destination
 import (
 	"context"
 	"crypto/rand"
-	"net/http"
 	"strconv"
 	"testing"
 
-	"github.com/aws/aws-sdk-go-v2/service/kinesis"
-	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
@@ -35,25 +32,16 @@ func TestWrite_MultiStream(t *testing.T) {
 	is := is.New(t)
 	con := newDestination()
 
-	// we make sure that the client is independent from the destination
-	testClient, err := common.NewClient(ctx, &http.Client{}, common.Config{
-		AWSRegion:          "us-east-1",
-		AWSAccessKeyID:     "accesskeymock",
-		AWSSecretAccessKey: "accesssecretmock",
-		AWSURL:             "http://localhost:4566",
-	})
-	is.NoErr(err)
-
-	stream1, cleanup1 := testutils.SetupTestStream(ctx, is, testClient)
+	stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
 	defer cleanup1()
 
-	stream2, cleanup2 := testutils.SetupTestStream(ctx, is, testClient)
+	stream2, cleanup2 := testutils.SetupTestStream(ctx, is)
 	defer cleanup2()
 
-	stream3, cleanup3 := testutils.SetupTestStream(ctx, is, testClient)
+	stream3, cleanup3 := testutils.SetupTestStream(ctx, is)
 	defer cleanup3()
 
-	err = con.Configure(ctx, testutils.GetTestConfig("")) // streamName is fetched from `opencdc.collection` field
+	err := con.Configure(ctx, testutils.GetTestConfig("")) // streamName is fetched from `opencdc.collection` field
 	is.NoErr(err)
 
 	err = con.Open(ctx)
@@ -75,24 +63,18 @@ func TestWrite_MultiStream(t *testing.T) {
 	is.NoErr(err)
 	is.Equal(written, len(recs))
 
-	t.Log("asserting stream 1", stream1)
-	assertWrittenRecordsOnStream(is, con.client, stream1, recs1)
-	t.Log("asserting stream 2", stream2)
-	assertWrittenRecordsOnStream(is, con.client, stream2, recs2)
-	t.Log("asserting stream 3", stream3)
-	assertWrittenRecordsOnStream(is, con.client, stream3, recs3)
+	assertWrittenRecordsOnStream(is, stream1, recs1)
+	assertWrittenRecordsOnStream(is, stream2, recs2)
+	assertWrittenRecordsOnStream(is, stream3, recs3)
 }
 
 func TestTeardown_Open(t *testing.T) {
 	is := is.New(t)
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	ctx := logger.WithContext(context.Background())
-	con := &Destination{
-		client:     &kinesis.Client{},
-		httpClient: &http.Client{},
-	}
+	con := newDestination()
 
-	streamName, cleanup := testutils.SetupTestStream(ctx, is, con.client)
+	streamName, cleanup := testutils.SetupTestStream(ctx, is)
 	defer cleanup()
 
 	err := con.Configure(ctx, testutils.GetTestConfig(streamName))
@@ -101,19 +83,16 @@ func TestTeardown_Open(t *testing.T) {
 	err = con.Open(ctx)
 	is.NoErr(err)
 
-	defer testutils.TeardownDestination(ctx, is, con)
+	testutils.TeardownDestination(ctx, is, con)
 }
 
 func TestWrite_PutRecords(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	ctx := logger.WithContext(context.Background())
 	is := is.New(t)
-	con := &Destination{
-		client:     &kinesis.Client{},
-		httpClient: &http.Client{},
-	}
+	con := newDestination()
 
-	streamName, cleanup := testutils.SetupTestStream(ctx, is, con.client)
+	streamName, cleanup := testutils.SetupTestStream(ctx, is)
 	defer cleanup()
 
 	err := con.Configure(ctx, testutils.GetTestConfig(streamName))
@@ -155,7 +134,7 @@ func TestWrite_PutRecords(t *testing.T) {
 			is.NoErr(err)
 			is.Equal(count, len(tt.records))
 
-			recs := testutils.GetRecords(ctx, is, streamName, con.client)
+			recs := testutils.GetRecords(ctx, is, streamName)
 			is.Equal(count, len(recs))
 		})
 	}
@@ -167,7 +146,7 @@ func TestWrite_PutRecord(t *testing.T) {
 	is := is.New(t)
 	con := newDestination()
 
-	streamName, cleanup := testutils.SetupTestStream(ctx, is, con.client)
+	streamName, cleanup := testutils.SetupTestStream(ctx, is)
 	defer cleanup()
 
 	err := con.Configure(ctx, testutils.GetTestConfig(streamName))
@@ -204,7 +183,7 @@ func TestWrite_PutRecord(t *testing.T) {
 			is.NoErr(err)
 			is.Equal(count, len(tt.records))
 
-			recs := testutils.GetRecords(ctx, is, con.config.StreamName, con.client)
+			recs := testutils.GetRecords(ctx, is, con.config.StreamName)
 
 			is.Equal(count, len(recs))
 		})
@@ -236,13 +215,8 @@ func makeRecords(count int, greaterThan5MB bool) []sdk.Record {
 	return records
 }
 
-func assertWrittenRecordsOnStream(
-	is *is.I,
-	client *kinesis.Client,
-	streamName string,
-	records []sdk.Record,
-) {
+func assertWrittenRecordsOnStream(is *is.I, streamName string, records []sdk.Record) {
 	ctx := context.Background()
-	recs := testutils.GetRecords(ctx, is, streamName, client)
+	recs := testutils.GetRecords(ctx, is, streamName)
 	is.Equal(len(records), len(recs))
 }

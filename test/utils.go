@@ -17,21 +17,22 @@ package testutils
 import (
 	"context"
 	"math"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/google/uuid"
 	"github.com/matryer/is"
 )
 
-func GetRecords(
-	ctx context.Context, is *is.I,
-	streamName string, client *kinesis.Client,
-) []types.Record {
+func GetRecords(ctx context.Context, is *is.I, streamName string) []types.Record {
+	client := NewTestClient(ctx, is)
+
 	streamData, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 		StreamName: &streamName,
 	})
@@ -63,8 +64,22 @@ func GetRecords(
 	return recs
 }
 
+func NewTestClient(ctx context.Context, is *is.I) *kinesis.Client {
+	client, err := common.NewClient(ctx, &http.Client{}, common.Config{
+		AWSRegion:          "us-east-1",
+		AWSAccessKeyID:     "accesskeymock",
+		AWSSecretAccessKey: "accesssecretmock",
+		AWSURL:             "http://localhost:4566",
+	})
+	is.NoErr(err)
+
+	return client
+}
+
 // SetupTestStream creates a test stream and returns the name of the stream and a function to delete the stream.
-func SetupTestStream(ctx context.Context, is *is.I, client *kinesis.Client) (streamName string, cleanup func()) {
+func SetupTestStream(ctx context.Context, is *is.I) (streamName string, cleanup func()) {
+	client := NewTestClient(ctx, is)
+
 	streamName = "stream_" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
 	_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
 		StreamName: &streamName,

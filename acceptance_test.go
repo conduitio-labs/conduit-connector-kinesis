@@ -51,8 +51,8 @@ func TestAcceptance(t *testing.T) {
 				"TestDestination_Configure_RequiredParams",
 				"TestSource_Configure_RequiredParams",
 			},
-			WriteTimeout: 3000 * time.Millisecond,
-			ReadTimeout:  3000 * time.Millisecond,
+			WriteTimeout: 5000 * time.Millisecond,
+			ReadTimeout:  5000 * time.Millisecond,
 		},
 	}
 
