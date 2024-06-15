@@ -68,16 +68,9 @@ func TestNewRandomStreamDoesntLeak(t *testing.T) {
 	setRandomStreamNameToCfg(t, cfg)
 }
 
-func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
-	is := is.New(t)
-
-	ctx := context.Background()
-
+func acceptanceClient(is *is.I, cfg map[string]string) (*kinesis.Client, func()) {
 	httpClient := &http.Client{}
-	defer httpClient.CloseIdleConnections()
-
-	streamName := testutils.RandomStreamName("acceptance_")
-	client, err := common.NewClient(ctx, httpClient, common.Config{
+	client, err := common.NewClient(context.Background(), httpClient, common.Config{
 		AWSAccessKeyID:     cfg["aws.accessKeyId"],
 		AWSSecretAccessKey: cfg["aws.secretAccessKey"],
 		AWSRegion:          cfg["aws.region"],
@@ -85,12 +78,27 @@ func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 	})
 	is.NoErr(err)
 
+	return client, func() {
+		httpClient.CloseIdleConnections()
+	}
+}
+
+func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
+	is := is.New(t)
+
+	ctx := context.Background()
+
+	client, cleanup := acceptanceClient(is, cfg)
+	defer cleanup()
+
+	streamName := testutils.RandomStreamName("acceptance_")
+
 	// Acceptance tests are susceptible to wrong record order. By default
 	// kinesis writes to multiple shards, making difficult debugging whether the
 	// read order of records is bad because of bad implementation or randomness.
 	// Forcing the shard count to 1 simplifies the issue.
 	var count int32 = 1
-	_, err = client.CreateStream(ctx, &kinesis.CreateStreamInput{
+	_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
 		StreamName: &streamName,
 		ShardCount: &count,
 	})
@@ -119,16 +127,8 @@ func cleanupAcceptanceTestStream(t *testing.T, cfg map[string]string) {
 
 	ctx := context.Background()
 
-	httpClient := &http.Client{}
-	defer httpClient.CloseIdleConnections()
-
-	client, err := common.NewClient(ctx, httpClient, common.Config{
-		AWSAccessKeyID:     cfg["aws.accessKeyId"],
-		AWSSecretAccessKey: cfg["aws.secretAccessKey"],
-		AWSRegion:          cfg["aws.region"],
-		AWSURL:             "http://localhost:4566",
-	})
-	is.NoErr(err)
+	client, cleanup := acceptanceClient(is, cfg)
+	defer cleanup()
 
 	describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 		StreamName: aws.String(cfg["streamName"]),
