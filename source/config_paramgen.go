@@ -49,7 +49,9 @@ func (Config) Parameters() map[string]sdk.Parameter {
 			Default:     "",
 			Description: "streamName is the name of the Kinesis Data Stream.",
 			Type:        sdk.ParameterTypeString,
-			Validations: []sdk.Validation{},
+			Validations: []sdk.Validation{
+				sdk.ValidationRequired{},
+			},
 		},
 	}
 }
