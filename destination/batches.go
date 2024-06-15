@@ -26,10 +26,10 @@ type streamNameParser interface {
 	ParseStreamName(sdk.Record) (string, error)
 }
 
-// fromColFieldParser parses the streamName from the opencdc.collection record
-// metadata field.
 type fromColFieldParser struct{}
 
+// ParseStreamName parses the streamName from the opencdc.collection record
+// metadata field.
 func (p *fromColFieldParser) ParseStreamName(r sdk.Record) (string, error) {
 	streamName, err := r.Metadata.GetCollection()
 	if err != nil {
@@ -54,6 +54,7 @@ func newFromTemplateParser(templateContents string) (*fromTemplateParser, error)
 	return &fromTemplateParser{contents: templateContents, template: t}, nil
 }
 
+// ParseStreamName parses the streamName from the given go template.
 func (p *fromTemplateParser) ParseStreamName(r sdk.Record) (string, error) {
 	var sb strings.Builder
 	if err := p.template.Execute(&sb, r); err != nil {
