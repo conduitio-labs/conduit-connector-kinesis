@@ -42,7 +42,7 @@ The destination supports multicollection mode, where the kinesis stream name is 
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
 | `aws.url`     | The URL for AWS (useful when testing the connector with localstack). | false     | ""            |
-| `streamName`     | streamName is the Kinesis stream name. It can contain a [Go template](https://pkg.go.dev/text/template) that will be executed for each record to determine the stream name. By default, the stream name is the value of the `opencdc.collection` metadata field. | false     | ""            |
+| `streamName`     | streamName is the Kinesis stream name. It can contain a [Go template](https://pkg.go.dev/text/template) that will be executed for each record to determine the stream name. By default, the stream name will come from the `opencdc.collection` record metadata field. | false     | `opencdc.collection`            |
 | `partitionKeyTemplate`  | The go template that will be used to generate partition keys. By default empty, which will generate partition keys from the record key string representation.    | false     | ""            |
 
 [Here's](./destination/pipeline.example.yaml) an example of a complete configuration pipeline for a Kinesis destination connector. 
