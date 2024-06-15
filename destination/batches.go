@@ -33,7 +33,7 @@ type fromColFieldParser struct{}
 func (p *fromColFieldParser) ParseStreamName(r sdk.Record) (string, error) {
 	streamName, err := r.Metadata.GetCollection()
 	if err != nil {
-		return "", fmt.Errorf("streamName not found in record %s", string(r.Key.Bytes()))
+		return "", fmt.Errorf("streamName not found in record's collection metadata %s", string(r.Key.Bytes()))
 	}
 
 	return streamName, nil
