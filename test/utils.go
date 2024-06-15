@@ -17,7 +17,6 @@ package testutils
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -75,11 +74,15 @@ func NewTestClient(ctx context.Context, is *is.I) *kinesis.Client {
 	return client
 }
 
+func RandomStreamName(prefix string) string {
+	return prefix + uuid.NewString()[:8]
+}
+
 // SetupTestStream creates a test stream and returns the name of the stream and a function to delete the stream.
 func SetupTestStream(ctx context.Context, is *is.I) (streamName string, cleanup func()) {
 	client := NewTestClient(ctx, is)
 
-	streamName = "stream_" + strings.ReplaceAll(uuid.NewString()[:8], "-", "")
+	streamName = RandomStreamName("stream_")
 	_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
 		StreamName: &streamName,
 	})

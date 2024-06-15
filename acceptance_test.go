@@ -26,7 +26,6 @@ import (
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	sdk "github.com/conduitio/conduit-connector-sdk"
-	"github.com/google/uuid"
 	"github.com/matryer/is"
 	"go.uber.org/goleak"
 )
@@ -77,7 +76,7 @@ func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 	httpClient := &http.Client{}
 	defer httpClient.CloseIdleConnections()
 
-	streamName := "acceptance_" + uuid.NewString()[0:8]
+	streamName := testutils.RandomStreamName("acceptance_")
 	client, err := common.NewClient(ctx, httpClient, common.Config{
 		AWSAccessKeyID:     cfg["aws.accessKeyId"],
 		AWSSecretAccessKey: cfg["aws.secretAccessKey"],
@@ -97,6 +96,8 @@ func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 	})
 	is.NoErr(err)
 
+	wait := common.ExponentialBackoff(100 * time.Millisecond)
+
 	for {
 		describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 			StreamName: &streamName,
@@ -109,7 +110,7 @@ func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 			break
 		}
 
-		time.Sleep(100 * time.Millisecond)
+		wait()
 	}
 }
 
