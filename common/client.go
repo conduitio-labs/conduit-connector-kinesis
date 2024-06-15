@@ -25,6 +25,10 @@ import (
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
 
+// NewClient creates a new Kinesis client that uses a custom http client. This
+// way we can close idle http connections when tearing down the connector. While
+// not useful on its own, it removes false positives from goleak in the
+// acceptance tests.
 func NewClient(ctx context.Context, httpClient *http.Client, cfg Config) (*kinesis.Client, error) {
 	var cfgOptions []func(*config.LoadOptions) error
 	cfgOptions = append(cfgOptions, config.WithRegion(cfg.AWSRegion))
