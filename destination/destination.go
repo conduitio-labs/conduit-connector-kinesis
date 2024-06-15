@@ -17,7 +17,6 @@ package destination
 import (
 	"context"
 	"fmt"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -108,6 +107,7 @@ func (d *Destination) Open(ctx context.Context) error {
 		return nil
 	}
 
+	wait := common.ExponentialBackoff(time.Second)
 	for i := 0; i < 4; i++ {
 		streamData, err := d.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 			StreamName: &d.config.StreamName,
@@ -125,7 +125,7 @@ func (d *Destination) Open(ctx context.Context) error {
 			return nil
 		}
 
-		time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second)
+		wait()
 	}
 
 	return fmt.Errorf("timed out waiting for stream %s to be ready", d.config.StreamName)

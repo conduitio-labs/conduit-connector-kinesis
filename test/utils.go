@@ -16,7 +16,6 @@ package testutils
 
 import (
 	"context"
-	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -86,8 +85,9 @@ func SetupTestStream(ctx context.Context, is *is.I) (streamName string, cleanup 
 	})
 	is.NoErr(err)
 
+	wait := common.ExponentialBackoff(100 * time.Millisecond)
 	for i := 0; i < 10; i++ {
-		time.Sleep(time.Duration(100*math.Pow(2, float64(i))) * time.Millisecond)
+		wait()
 
 		streamStatus, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 			StreamName: &streamName,
