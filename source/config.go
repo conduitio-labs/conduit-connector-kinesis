@@ -21,7 +21,7 @@ type Config struct {
 	common.Config
 
 	// StreamName is the name of the Kinesis Data Stream.
-	StreamName string `json:"streamName"`
+	StreamName string `json:"streamName" validate:"required"`
 
 	// startFromLatest defaults to false. When true, sets the iterator type to
 	// LATEST (iterates from the point that the connection begins = CDC). when false, sets the iterator type
