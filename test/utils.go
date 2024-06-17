@@ -115,11 +115,6 @@ streamIsActive:
 	}
 }
 
-func TeardownSource(ctx context.Context, is *is.I, con sdk.Source) {
-	err := con.Teardown(ctx)
-	is.NoErr(err)
-}
-
 func TeardownDestination(ctx context.Context, is *is.I, con sdk.Destination) {
 	err := con.Teardown(ctx)
 	is.NoErr(err)

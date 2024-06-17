@@ -1,6 +1,6 @@
 services:
   localstack:
-    container_name: "${LOCALSTACK_DOCKER_NAME-localstack_main}"
+    container_name: "kinesis"
     image: localstack/localstack:3.4
     ports:
       - "4566:4566"

@@ -29,43 +29,87 @@ import (
 func TestWrite_MultiStream(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	ctx := logger.WithContext(context.Background())
-	is := is.New(t)
-	con := newDestination()
 
-	stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
-	defer cleanup1()
+	t.Run("using col field", func(t *testing.T) {
+		is := is.New(t)
+		con := newDestination()
+		stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
+		defer cleanup1()
 
-	stream2, cleanup2 := testutils.SetupTestStream(ctx, is)
-	defer cleanup2()
+		stream2, cleanup2 := testutils.SetupTestStream(ctx, is)
+		defer cleanup2()
 
-	stream3, cleanup3 := testutils.SetupTestStream(ctx, is)
-	defer cleanup3()
+		stream3, cleanup3 := testutils.SetupTestStream(ctx, is)
+		defer cleanup3()
 
-	err := con.Configure(ctx, testutils.GetTestConfig("")) // streamName is fetched from `opencdc.collection` field
-	is.NoErr(err)
+		// streamName is fetched from `opencdc.collection` field
+		err := con.Configure(ctx, testutils.GetTestConfig(""))
+		is.NoErr(err)
 
-	err = con.Open(ctx)
-	is.NoErr(err)
+		err = con.Open(ctx)
+		is.NoErr(err)
 
-	defer testutils.TeardownDestination(ctx, is, con)
+		defer testutils.TeardownDestination(ctx, is, con)
 
-	var recs []sdk.Record
-	recs1 := testRecordsStreamOnColField(t, stream1)
-	recs = append(recs, recs1...)
+		var recs []sdk.Record
+		recs1 := testRecordsStreamOnColField(t, stream1)
+		recs = append(recs, recs1...)
 
-	recs2 := testRecordsStreamOnColField(t, stream2)
-	recs = append(recs, recs2...)
+		recs2 := testRecordsStreamOnColField(t, stream2)
+		recs = append(recs, recs2...)
 
-	recs3 := testRecordsStreamOnColField(t, stream3)
-	recs = append(recs, recs3...)
+		recs3 := testRecordsStreamOnColField(t, stream3)
+		recs = append(recs, recs3...)
 
-	written, err := con.Write(ctx, recs)
-	is.NoErr(err)
-	is.Equal(written, len(recs))
+		written, err := con.Write(ctx, recs)
+		is.NoErr(err)
+		is.Equal(written, len(recs))
 
-	assertWrittenRecordsOnStream(is, stream1, recs1)
-	assertWrittenRecordsOnStream(is, stream2, recs2)
-	assertWrittenRecordsOnStream(is, stream3, recs3)
+		assertWrittenRecordsOnStream(ctx, is, stream1, recs1)
+		assertWrittenRecordsOnStream(ctx, is, stream2, recs2)
+		assertWrittenRecordsOnStream(ctx, is, stream3, recs3)
+	})
+
+	t.Run("using template", func(t *testing.T) {
+		is := is.New(t)
+
+		con := newDestination()
+		stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
+		defer cleanup1()
+
+		stream2, cleanup2 := testutils.SetupTestStream(ctx, is)
+		defer cleanup2()
+
+		stream3, cleanup3 := testutils.SetupTestStream(ctx, is)
+		defer cleanup3()
+
+		template := `{{ index .Metadata "streamName" }}`
+		err := con.Configure(ctx, testutils.GetTestConfig(template))
+		is.NoErr(err)
+
+		err = con.Open(ctx)
+		is.NoErr(err)
+
+		defer testutils.TeardownDestination(ctx, is, con)
+
+		var recs []sdk.Record
+		recs1 := testRecordsStreamOnMetadata(t, stream1)
+		recs = append(recs, recs1...)
+
+		recs2 := testRecordsStreamOnMetadata(t, stream2)
+		recs = append(recs, recs2...)
+
+		recs3 := testRecordsStreamOnMetadata(t, stream3)
+		recs = append(recs, recs3...)
+
+		written, err := con.Write(ctx, recs)
+		is.NoErr(err)
+		is.Equal(written, len(recs))
+
+		assertWrittenRecordsOnStream(ctx, is, stream1, recs1)
+		assertWrittenRecordsOnStream(ctx, is, stream2, recs2)
+		assertWrittenRecordsOnStream(ctx, is, stream3, recs3)
+	})
 }
 
 func TestTeardown_Open(t *testing.T) {
@@ -215,8 +259,10 @@ func makeRecords(count int, greaterThan5MB bool) []sdk.Record {
 	return records
 }
 
-func assertWrittenRecordsOnStream(is *is.I, streamName string, records []sdk.Record) {
-	ctx := context.Background()
+func assertWrittenRecordsOnStream(
+	ctx context.Context, is *is.I,
+	streamName string, records []sdk.Record,
+) {
 	recs := testutils.GetRecords(ctx, is, streamName)
 	is.Equal(len(records), len(recs))
 }

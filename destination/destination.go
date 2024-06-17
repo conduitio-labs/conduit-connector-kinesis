@@ -101,7 +101,7 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 }
 
 func (d *Destination) Open(ctx context.Context) error {
-	if d.config.StreamName == "" {
+	if isGoTemplate(d.config.StreamName) || d.config.StreamName == "" {
 		// destination is in multicollection mode, so we don't need to wait for any
 		// stream to be ready to be used
 		return nil
