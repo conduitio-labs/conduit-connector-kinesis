@@ -23,8 +23,6 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
@@ -91,36 +89,10 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 	}
 	sdk.Logger(ctx).Info().Msg("parsed configuration")
 
-	// Configure the creds for the client
-	var cfgOptions []func(*config.LoadOptions) error
-
-	cfgOptions = append(cfgOptions, config.WithHTTPClient(s.httpClient))
-	cfgOptions = append(cfgOptions, config.WithRegion(s.config.AWSRegion))
-	cfgOptions = append(cfgOptions, config.WithCredentialsProvider(
-		credentials.NewStaticCredentialsProvider(
-			s.config.AWSAccessKeyID,
-			s.config.AWSSecretAccessKey,
-			"")))
-
-	awsCfg, err := config.LoadDefaultConfig(ctx, cfgOptions...)
+	s.client, err = common.NewClient(ctx, s.httpClient, s.config.Config)
 	if err != nil {
-		return fmt.Errorf("failed to load aws config with given credentials : %w", err)
+		return fmt.Errorf("failed to create client: %w", err)
 	}
-
-	sdk.Logger(ctx).Info().Msg("loaded source aws configuration")
-
-	var kinesisOptions []func(*kinesis.Options)
-
-	if s.config.AWSURL != "" {
-		resolver, err := common.NewEndpointResolver(s.config.AWSURL)
-		if err != nil {
-			return fmt.Errorf("failed to create endpoint resolver: %w", err)
-		}
-
-		kinesisOptions = append(kinesisOptions, kinesis.WithEndpointResolverV2(resolver))
-	}
-
-	s.client = kinesis.NewFromConfig(awsCfg, kinesisOptions...)
 
 	sdk.Logger(ctx).Info().Msg("created source client")
 
@@ -129,16 +101,16 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 
 func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 	// DescribeStream to know that the stream ARN is valid and usable, ie test connection
-	_, err := s.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-		StreamARN: &s.config.StreamARN,
+	streamOutput, err := s.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
+		StreamName: &s.config.StreamName,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to test connection to stream: %w", err)
 	}
-	sdk.Logger(ctx).Info().Str("streamARN", s.config.StreamARN).Msg("stream valid")
+	sdk.Logger(ctx).Info().Str("streamName", s.config.StreamName).Msg("stream valid")
 
 	consumerResponse, err := s.client.RegisterStreamConsumer(ctx, &kinesis.RegisterStreamConsumerInput{
-		StreamARN:    &s.config.StreamARN,
+		StreamARN:    streamOutput.StreamDescription.StreamARN,
 		ConsumerName: aws.String("conduit-connector-kinesis-source-" + ulid.Make().String()),
 	})
 	if err != nil {
@@ -170,9 +142,7 @@ func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
 func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) error {
 	for count := 1; count <= 5; count++ {
 		describedConsumer, err := s.client.DescribeStreamConsumer(ctx, &kinesis.DescribeStreamConsumerInput{
-			ConsumerARN:  consumer.ConsumerARN,
-			ConsumerName: consumer.ConsumerName,
-			StreamARN:    &s.config.StreamARN,
+			ConsumerARN: consumer.ConsumerARN,
 		})
 		if err != nil {
 			return fmt.Errorf("failed to describe stream consumer: %w", err)
@@ -216,7 +186,6 @@ func (s *Source) Teardown(ctx context.Context) error {
 	if s.consumerARN != nil {
 		_, err := s.client.DeregisterStreamConsumer(ctx, &kinesis.DeregisterStreamConsumerInput{
 			ConsumerARN: s.consumerARN,
-			StreamARN:   &s.config.StreamARN,
 		})
 		if err != nil {
 			return fmt.Errorf(
@@ -251,7 +220,7 @@ func (s *Source) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
+func toRecords(kinRecords []types.Record, streamName, shardID string) []sdk.Record {
 	sdkRecs := make([]sdk.Record, 0, len(kinRecords))
 
 	for _, rec := range kinRecords {
@@ -275,6 +244,7 @@ func toRecords(kinRecords []types.Record, shardID string) []sdk.Record {
 			sdk.RawData(kinPosBytes),
 			sdk.RawData(rec.Data),
 		)
+		sdkRec.Metadata.SetCollection(streamName)
 
 		sdkRecs = append(sdkRecs, sdkRec)
 	}
@@ -305,7 +275,7 @@ func (s *Source) listenEvents(ctx context.Context) {
 					eventValue := subsEvent.Value
 
 					if len(eventValue.Records) > 0 {
-						recs := toRecords(eventValue.Records, shardID)
+						recs := toRecords(eventValue.Records, s.config.StreamName, shardID)
 
 						for _, record := range recs {
 							s.buffer <- record
@@ -361,7 +331,7 @@ func (s *Source) subscribeShards(ctx context.Context, position sdk.Position) err
 	logEvt.Msg("starting position")
 
 	listShardsResponse, err := s.client.ListShards(ctx, &kinesis.ListShardsInput{
-		StreamARN: &s.config.StreamARN,
+		StreamName: &s.config.StreamName,
 	})
 	if err != nil {
 		return fmt.Errorf("error retrieving kinesis shards: %w", err)

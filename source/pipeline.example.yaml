@@ -9,7 +9,7 @@ pipelines:
         type: source
         plugin: standalone:kinesis
         settings:
-          streamARN: arn:aws:kinesis:us-east-1:000000000000:stream/stream-name
+          streamName: stream-name
           aws.region: us-east-1
           aws.accessKeyId: accesskeymock
           aws.secretAccessKey: accesssecretmock

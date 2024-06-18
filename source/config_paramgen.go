@@ -45,19 +45,13 @@ func (Config) Parameters() map[string]sdk.Parameter {
 			Type:        sdk.ParameterTypeBool,
 			Validations: []sdk.Validation{},
 		},
-		"streamARN": {
+		"streamName": {
 			Default:     "",
-			Description: "streamARN is the Kinesis stream's Amazon Resource Name",
+			Description: "streamName is the name of the Kinesis Data Stream.",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{
 				sdk.ValidationRequired{},
 			},
-		},
-		"streamName": {
-			Default:     "",
-			Description: "streamName is the name of the Kinesis Data Stream",
-			Type:        sdk.ParameterTypeString,
-			Validations: []sdk.Validation{},
 		},
 	}
 }

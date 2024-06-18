@@ -50,7 +50,7 @@ func TestCreatePutRequestInput(t *testing.T) {
 		err := dest.Configure(ctx, map[string]string{"partitionKeyTemplate": "partitionKey"})
 		is.NoErr(err)
 
-		request, err := dest.createPutRequestInput(ctx, records)
+		request, err := dest.createPutRequestInput(ctx, records, "streamName")
 		is.NoErr(err)
 
 		for i, req := range request.Records {
@@ -62,7 +62,7 @@ func TestCreatePutRequestInput(t *testing.T) {
 	{
 		dest := Destination{config: Config{}}
 
-		request, err := dest.createPutRequestInput(ctx, records)
+		request, err := dest.createPutRequestInput(ctx, records, "streamName")
 		is.NoErr(err)
 
 		for i, req := range request.Records {

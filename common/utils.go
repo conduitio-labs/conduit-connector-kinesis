@@ -14,13 +14,25 @@
 
 package common
 
-type Config struct {
-	// AWSAccessKeyID is the amazon access key id
-	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
-	// AWSSecretAccessKey is the amazon secret access key
-	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
-	// AWSRegion is the region where the stream is hosted
-	AWSRegion string `json:"aws.region" validate:"required"`
-	// AWSURL is the URL for endpoint override - testing/dry-run only
-	AWSURL string `json:"aws.url"`
+import (
+	"time"
+)
+
+// ExponentialBackoffDelay returns a function that will sleep for a given
+// delay, and then exponentially double the delay for the next call. This
+// is not concurrently safe.
+// Example usage:
+//
+//	wait := ExponentialBackoffDelay(time.Second)
+//	wait() // sleep for 1 second
+//	wait() // sleep for 2 seconds
+//	wait() // sleep for 4 seconds
+//	...
+func ExponentialBackoff(delay time.Duration) func() {
+	twoExp := 1
+
+	return func() {
+		time.Sleep(delay * time.Duration(twoExp))
+		twoExp *= 2
+	}
 }

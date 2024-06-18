@@ -20,6 +20,7 @@ import (
 
 	"github.com/conduitio-labs/conduit-connector-kinesis/destination"
 	"github.com/conduitio-labs/conduit-connector-kinesis/source"
+	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	"github.com/matryer/is"
 	"go.uber.org/goleak"
 )
@@ -33,14 +34,9 @@ func TestConnectorCleanup(t *testing.T) {
 	is := is.New(t)
 	ctx := context.Background()
 
-	cfg := map[string]string{
-		"aws.region":          "us-east-1",
-		"aws.accessKeyId":     "accesskeymock",
-		"aws.secretAccessKey": "accesssecretmock",
-		"aws.url":             "http://localhost:4566",
-	}
+	cfg := testutils.GetTestConfig("test-source")
 
-	setRandomStreamARNToCfg(t, cfg)
+	setRandomStreamNameToCfg(t, cfg)
 
 	src := source.New()
 	err := src.Configure(ctx, cfg)

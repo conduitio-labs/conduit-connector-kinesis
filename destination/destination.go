@@ -21,9 +21,8 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
@@ -38,6 +37,9 @@ type Destination struct {
 	// client is the Client for the AWS Kinesis API
 	client *kinesis.Client
 
+	// recordWriter abstracts how records are written to the destination
+	recordWriter recordWriter
+
 	// partitionKeyTempl is the parsed template given from the
 	// PartitionKeyTemplate configuration parameter. If none given
 	// will be set to nil.
@@ -49,12 +51,13 @@ type Destination struct {
 	httpClient *http.Client
 }
 
-func New() sdk.Destination {
+func newDestination() *Destination {
 	httpClient := &http.Client{Transport: &http.Transport{}}
-	return sdk.DestinationWithMiddleware(
-		&Destination{httpClient: httpClient},
-		sdk.DefaultDestinationMiddleware()...,
-	)
+	return &Destination{httpClient: httpClient}
+}
+
+func New() sdk.Destination {
+	return sdk.DestinationWithMiddleware(newDestination(), sdk.DefaultDestinationMiddleware()...)
 }
 
 func (d *Destination) Parameters() map[string]sdk.Parameter {
@@ -75,53 +78,57 @@ func (d *Destination) Configure(ctx context.Context, cfg map[string]string) erro
 		}
 	}
 
-	// Configure the creds for the client
-	var cfgOptions []func(*config.LoadOptions) error
-	cfgOptions = append(cfgOptions, config.WithRegion(d.config.AWSRegion))
-	cfgOptions = append(cfgOptions, config.WithCredentialsProvider(
-		credentials.NewStaticCredentialsProvider(
-			d.config.AWSAccessKeyID,
-			d.config.AWSSecretAccessKey,
-			"")))
-	cfgOptions = append(cfgOptions, config.WithHTTPClient(d.httpClient))
-
-	awsCfg, err := config.LoadDefaultConfig(ctx, cfgOptions...)
-	if err != nil {
-		return fmt.Errorf("failed to load aws config with given credentials : %w", err)
-	}
-
-	sdk.Logger(ctx).Info().Msg("loaded destination aws configuration")
-
-	var kinesisOptions []func(*kinesis.Options)
-
-	if d.config.AWSURL != "" {
-		resolver, err := common.NewEndpointResolver(d.config.AWSURL)
+	switch streamName := d.config.StreamName; {
+	case isGoTemplate(streamName):
+		recordWriter, err := newMultiStreamWriterFromTemplate(d, streamName)
 		if err != nil {
-			return fmt.Errorf("failed to create endpoint resolver: %w", err)
+			return fmt.Errorf("failed to create streamName parser: %w", err)
 		}
 
-		kinesisOptions = append(kinesisOptions, kinesis.WithEndpointResolverV2(resolver))
+		d.recordWriter = recordWriter
+	case d.config.StreamName == "":
+		d.recordWriter = newMultiStreamWriterFromOpencdcCollection(d)
+	default:
+		d.recordWriter = &singleStreamWriter{destination: d}
 	}
 
-	d.client = kinesis.NewFromConfig(awsCfg, kinesisOptions...)
-
-	sdk.Logger(ctx).Info().Msg("created destination client")
+	d.client, err = common.NewClient(ctx, d.httpClient, d.config.Config)
+	if err != nil {
+		return fmt.Errorf("failed to create client: %w", err)
+	}
 
 	return nil
 }
 
 func (d *Destination) Open(ctx context.Context) error {
-	// DescribeStream to know that the stream ARN is valid and usable, ie test connection
-	_, err := d.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-		StreamARN: &d.config.StreamARN,
-	})
-	if err != nil {
-		return fmt.Errorf("error when attempting to test connection to stream: %w", err)
+	if isGoTemplate(d.config.StreamName) || d.config.StreamName == "" {
+		// destination is in multicollection mode, so we don't need to wait for any
+		// stream to be ready to be used
+		return nil
 	}
 
-	sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+	wait := common.ExponentialBackoff(time.Second)
+	for i := 0; i < 4; i++ {
+		streamData, err := d.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
+			StreamName: &d.config.StreamName,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to describe stream: %w", err)
+		}
 
-	return nil
+		switch status := streamData.StreamDescription.StreamStatus; status {
+		case types.StreamStatusCreating, types.StreamStatusUpdating:
+		case types.StreamStatusDeleting:
+			return fmt.Errorf("stream %s is being deleted", d.config.StreamName)
+		case types.StreamStatusActive:
+			sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+			return nil
+		}
+
+		wait()
+	}
+
+	return fmt.Errorf("timed out waiting for stream %s to be ready", d.config.StreamName)
 }
 
 func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string, error) {
@@ -132,7 +139,7 @@ func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string,
 		if len(partitionKey) > 256 {
 			partitionKey = partitionKey[:256]
 			sdk.Logger(ctx).Warn().
-				Msg("using a record key greater than 256 characters as a partition key; trimming it down")
+				Msg("detected record key greater than 256 characters as a partition key; trimming it down")
 		}
 
 		return partitionKey, nil
@@ -146,7 +153,11 @@ func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string,
 	return sb.String(), nil
 }
 
-func (d *Destination) createPutRequestInput(ctx context.Context, records []sdk.Record) (*kinesis.PutRecordsInput, error) {
+func (d *Destination) createPutRequestInput(
+	ctx context.Context,
+	records []sdk.Record,
+	streamName string,
+) (*kinesis.PutRecordsInput, error) {
 	entries := make([]types.PutRecordsRequestEntry, 0, len(records))
 
 	for _, rec := range records {
@@ -163,27 +174,49 @@ func (d *Destination) createPutRequestInput(ctx context.Context, records []sdk.R
 	}
 
 	return &kinesis.PutRecordsInput{
-		StreamARN:  &d.config.StreamARN,
-		StreamName: &d.config.StreamName,
+		StreamName: &streamName,
 		Records:    entries,
 	}, nil
 }
 
-func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, error) {
-	req, err := d.createPutRequestInput(ctx, records)
+func (d *Destination) Write(ctx context.Context, records []sdk.Record) (written int, err error) {
+	return d.recordWriter.Write(ctx, records) //nolint:wrapcheck // record writer already wraps errors properly
+}
+
+func (d *Destination) Teardown(ctx context.Context) error {
+	d.httpClient.CloseIdleConnections()
+	sdk.Logger(ctx).Info().Msg("closed all httpClient unused connections")
+	return nil
+}
+
+type recordWriter interface {
+	Write(ctx context.Context, records []sdk.Record) (int, error)
+}
+
+// singleStreamWriter writes records to a single stream. It will ignore the
+// `opencdc.collection` field in the record.
+type singleStreamWriter struct {
+	destination *Destination
+}
+
+func (s *singleStreamWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
+	req, err := s.destination.createPutRequestInput(ctx, records, s.destination.config.StreamName)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create put records request: %w", err)
 	}
 
 	var written int
-	output, err := d.client.PutRecords(ctx, req)
+	output, err := s.destination.client.PutRecords(ctx, req)
 	if err != nil {
 		return written, fmt.Errorf("failed to put %v records into %s: %w", len(req.Records), *req.StreamName, err)
 	}
 
 	for _, rec := range output.Records {
 		if rec.ErrorCode != nil {
-			return written, fmt.Errorf("error when attempting to insert record %s: %s", *rec.ErrorCode, *rec.ErrorMessage)
+			return written, fmt.Errorf(
+				"error when attempting to insert record, error code %s: %s",
+				*rec.ErrorCode, *rec.ErrorMessage,
+			)
 		}
 		written++
 	}
@@ -192,8 +225,62 @@ func (d *Destination) Write(ctx context.Context, records []sdk.Record) (int, err
 	return written, nil
 }
 
-func (d *Destination) Teardown(ctx context.Context) error {
-	d.httpClient.CloseIdleConnections()
-	sdk.Logger(ctx).Info().Msg("closed all httpClient unused connections")
-	return nil
+// multiStreamWriter writes records to multiple streams. The streamNameParser
+// is used to parse the streamName from a record. If the streamNameParser
+// returns an error, the record is not written to any stream.
+type multiStreamWriter struct {
+	destination      *Destination
+	streamNameParser streamNameParser
+}
+
+func newMultiStreamWriterFromTemplate(destination *Destination, streamName string) (*multiStreamWriter, error) {
+	parser, err := newFromTemplateParser(streamName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create streamName parser: %w", err)
+	}
+	return &multiStreamWriter{destination: destination, streamNameParser: parser}, nil
+}
+
+func newMultiStreamWriterFromOpencdcCollection(destination *Destination) *multiStreamWriter {
+	return &multiStreamWriter{
+		destination:      destination,
+		streamNameParser: &fromColFieldParser{},
+	}
+}
+
+func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
+	batches, err := parseBatches(records, m.streamNameParser)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse batches: %w", err)
+	}
+
+	var written int
+	for _, batch := range batches {
+		req, err := m.destination.createPutRequestInput(ctx, batch.records, batch.streamName)
+		if err != nil {
+			return written, fmt.Errorf("failed to create put records request: %w", err)
+		}
+
+		output, err := m.destination.client.PutRecords(ctx, req)
+		if err != nil {
+			return written, fmt.Errorf("failed to put %v records: %w", len(req.Records), err)
+		}
+
+		for _, rec := range output.Records {
+			if rec.ErrorCode != nil {
+				return written, fmt.Errorf(
+					"error when attempting to insert record, error code %s: %s",
+					*rec.ErrorCode, *rec.ErrorMessage,
+				)
+			}
+			written++
+		}
+	}
+
+	sdk.Logger(ctx).Debug().Msgf("wrote %s records to destination", strconv.Itoa(written))
+	return written, nil
+}
+
+func isGoTemplate(template string) bool {
+	return strings.HasPrefix(template, "{{") && strings.HasSuffix(template, "}}")
 }

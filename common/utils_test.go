@@ -14,13 +14,26 @@
 
 package common
 
-type Config struct {
-	// AWSAccessKeyID is the amazon access key id
-	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
-	// AWSSecretAccessKey is the amazon secret access key
-	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
-	// AWSRegion is the region where the stream is hosted
-	AWSRegion string `json:"aws.region" validate:"required"`
-	// AWSURL is the URL for endpoint override - testing/dry-run only
-	AWSURL string `json:"aws.url"`
+import (
+	"testing"
+	"time"
+
+	"github.com/matryer/is"
+)
+
+func TestExponentialBackoff(t *testing.T) {
+	is := is.New(t)
+
+	start := time.Now()
+
+	wait := ExponentialBackoff(time.Millisecond)
+	for i := 0; i < 3; i++ {
+		wait()
+	}
+
+	elapsed := time.Since(start)
+
+	// elapsed should be 2 ** 3 * time.Millisecond (~8ms)
+	is.True(elapsed > 7*time.Millisecond)
+	is.True(elapsed < 9*time.Millisecond)
 }

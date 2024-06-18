@@ -29,7 +29,7 @@ type EndpointResolver struct{ url url.URL }
 
 var _ kinesis.EndpointResolverV2 = (*EndpointResolver)(nil)
 
-func NewEndpointResolver(urlStr string) (*EndpointResolver, error) {
+func newEndpointResolver(urlStr string) (*EndpointResolver, error) {
 	u, err := url.Parse(urlStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse endpoint url: %w", err)

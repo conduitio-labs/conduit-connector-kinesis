@@ -20,8 +20,7 @@ The Source connector for AWS Kinesis opens subscriptions to each of the availabl
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
 | `aws.url`     | The URL for AWS (useful when testing the connector with localstack). | false     | ""            |
-| `streamName`     | The AWS Kinesis stream name | false     | ""            |
-| `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
+| `streamName`     | The AWS Kinesis stream name | true     | ""            |
 | `startFromLatest`     | Set this value to true to ignore any records already in the stream  | false     | false           |
 
 [Here's](./source/pipeline.example.yaml) an example of a complete configuration pipeline for a Kinesis source connector. 
@@ -33,6 +32,7 @@ By default the partition key will consist of the record key. If the record key e
 
 If given a partition key go template, the key will be generated from the given template, with the record data as the main data context.
 
+The destination supports multicollection mode, where the kinesis stream name is determined at runtime, based on the `opencdc.collection` metadata field or a given go template. If no stream name is found, the destination will output a stream not found error.
 
 ### Configuration
 
@@ -41,9 +41,8 @@ If given a partition key go template, the key will be generated from the given t
 | `aws.accessKeyId`     | Access Key ID associated with your AWS resources | true     | ""            |
 | `aws.secretAccessKey` | Secret Access Key associated with your AWS resources | true     | ""            |
 | `aws.region`     | Region associated with your AWS resources | true     | ""            |
-| `aws.url`     | (LOCAL TESTING ONLY) the url override to test with localstack | false     | ""            |
-| `streamName`     | The AWS Kinesis stream name | false     | ""            |
-| `streamARN`     | The AWS Kinesis stream ARN | true     | ""            |
+| `aws.url`     | The URL for AWS (useful when testing the connector with localstack). | false     | ""            |
+| `streamName`     | streamName is the Kinesis stream name. It can contain a [Go template](https://pkg.go.dev/text/template) that will be executed for each record to determine the stream name. By default, the stream name will come from the `opencdc.collection` record metadata field. | false     | `{{ index .Metadata "opencdc.collection" }}`            |
 | `partitionKeyTemplate`  | The go template that will be used to generate partition keys. By default empty, which will generate partition keys from the record key string representation.    | false     | ""            |
 
 [Here's](./destination/pipeline.example.yaml) an example of a complete configuration pipeline for a Kinesis destination connector. 

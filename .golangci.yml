@@ -25,7 +25,6 @@ issues:
         - gocognit
         - errcheck
         - forcetypeassert
-        - funlen
         - goerr113
         - dupl
         - prealloc
@@ -56,7 +55,6 @@ linters:
     - exportloopref
     # - forbidigo
     - forcetypeassert
-    - funlen
     - gci
     - ginkgolinter
     - gocheckcompilerdirectives

@@ -45,17 +45,9 @@ func (Config) Parameters() map[string]sdk.Parameter {
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{},
 		},
-		"streamARN": {
-			Default:     "",
-			Description: "streamARN is the Kinesis stream's Amazon Resource Name",
-			Type:        sdk.ParameterTypeString,
-			Validations: []sdk.Validation{
-				sdk.ValidationRequired{},
-			},
-		},
 		"streamName": {
-			Default:     "",
-			Description: "streamName is the name of the Kinesis Data Stream",
+			Default:     "{{ index .Metadata \"opencdc.collection\" }}",
+			Description: "streamName is the name of the Kinesis Data Stream. It can contain a [Go template](https://pkg.go.dev/text/template) that will be executed for each record to determine the stream name. By default, the stream name is the value of the `opencdc.collection` metadata field.",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{},
 		},

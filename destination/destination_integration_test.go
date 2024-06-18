@@ -17,100 +17,135 @@ package destination
 import (
 	"context"
 	"crypto/rand"
-	"fmt"
-	"net/http"
 	"strconv"
-	"strings"
 	"testing"
-	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/kinesis"
-	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
-	"github.com/oklog/ulid/v2"
 	"github.com/rs/zerolog"
 )
 
-var cfg = map[string]string{
-	"streamARN":           "arn:aws:kinesis:us-east-1:000000000000:stream/stream1",
-	"aws.region":          "us-east-1",
-	"aws.accessKeyId":     "accesskeymock",
-	"aws.secretAccessKey": "accesssecretmock",
-	"aws.url":             "http://localhost:4566",
-}
+func TestWrite_MultiStream(t *testing.T) {
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	ctx := logger.WithContext(context.Background())
 
-func setupDestinationTest(ctx context.Context, client *kinesis.Client, is *is.I) string {
-	testID := ulid.Make()
+	t.Run("using col field", func(t *testing.T) {
+		is := is.New(t)
+		con := newDestination()
+		stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
+		defer cleanup1()
 
-	streamName := "stream-destination" + testID.String()
-	// create stream
-	_, err := client.CreateStream(ctx, &kinesis.CreateStreamInput{
-		StreamName: &streamName,
-	})
-	if err != nil {
-		if !strings.Contains(err.Error(), "already exists") {
-			fmt.Println("stream already exists")
-		}
-	} else {
+		stream2, cleanup2 := testutils.SetupTestStream(ctx, is)
+		defer cleanup2()
+
+		stream3, cleanup3 := testutils.SetupTestStream(ctx, is)
+		defer cleanup3()
+
+		// streamName is fetched from `opencdc.collection` field
+		err := con.Configure(ctx, testutils.GetTestConfig(""))
 		is.NoErr(err)
-	}
 
-	time.Sleep(time.Second * 1)
-	describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-		StreamName: &streamName,
+		err = con.Open(ctx)
+		is.NoErr(err)
+
+		defer testutils.TeardownDestination(ctx, is, con)
+
+		var recs []sdk.Record
+		recs1 := testRecordsStreamOnColField(t, stream1)
+		recs = append(recs, recs1...)
+
+		recs2 := testRecordsStreamOnColField(t, stream2)
+		recs = append(recs, recs2...)
+
+		recs3 := testRecordsStreamOnColField(t, stream3)
+		recs = append(recs, recs3...)
+
+		written, err := con.Write(ctx, recs)
+		is.NoErr(err)
+		is.Equal(written, len(recs))
+
+		assertWrittenRecordsOnStream(ctx, is, stream1, recs1)
+		assertWrittenRecordsOnStream(ctx, is, stream2, recs2)
+		assertWrittenRecordsOnStream(ctx, is, stream3, recs3)
 	})
-	is.NoErr(err)
 
-	return *describe.StreamDescription.StreamARN
-}
+	t.Run("using template", func(t *testing.T) {
+		is := is.New(t)
 
-func cleanupTest(ctx context.Context, client *kinesis.Client, streamARN string) {
-	_, err := client.DeleteStream(ctx, &kinesis.DeleteStreamInput{
-		EnforceConsumerDeletion: aws.Bool(true),
-		StreamARN:               &streamARN,
+		con := newDestination()
+		stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
+		defer cleanup1()
+
+		stream2, cleanup2 := testutils.SetupTestStream(ctx, is)
+		defer cleanup2()
+
+		stream3, cleanup3 := testutils.SetupTestStream(ctx, is)
+		defer cleanup3()
+
+		template := `{{ index .Metadata "streamName" }}`
+		err := con.Configure(ctx, testutils.GetTestConfig(template))
+		is.NoErr(err)
+
+		err = con.Open(ctx)
+		is.NoErr(err)
+
+		defer testutils.TeardownDestination(ctx, is, con)
+
+		var recs []sdk.Record
+		recs1 := testRecordsStreamOnMetadata(t, stream1)
+		recs = append(recs, recs1...)
+
+		recs2 := testRecordsStreamOnMetadata(t, stream2)
+		recs = append(recs, recs2...)
+
+		recs3 := testRecordsStreamOnMetadata(t, stream3)
+		recs = append(recs, recs3...)
+
+		written, err := con.Write(ctx, recs)
+		is.NoErr(err)
+		is.Equal(written, len(recs))
+
+		assertWrittenRecordsOnStream(ctx, is, stream1, recs1)
+		assertWrittenRecordsOnStream(ctx, is, stream2, recs2)
+		assertWrittenRecordsOnStream(ctx, is, stream3, recs3)
 	})
-	if err != nil {
-		sdk.Logger(ctx).Err(err).Send()
-	}
 }
 
 func TestTeardown_Open(t *testing.T) {
 	is := is.New(t)
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	ctx := logger.WithContext(context.Background())
-	con := Destination{
-		client:     &kinesis.Client{},
-		httpClient: &http.Client{},
-	}
+	con := newDestination()
 
-	err := con.Configure(ctx, cfg)
+	streamName, cleanup := testutils.SetupTestStream(ctx, is)
+	defer cleanup()
+
+	err := con.Configure(ctx, testutils.GetTestConfig(streamName))
 	is.NoErr(err)
-
-	con.config.StreamARN = setupDestinationTest(ctx, con.client, is)
-	defer cleanupTest(ctx, con.client, con.config.StreamARN)
 
 	err = con.Open(ctx)
 	is.NoErr(err)
 
-	err = con.Teardown(ctx)
-	is.NoErr(err)
+	testutils.TeardownDestination(ctx, is, con)
 }
 
 func TestWrite_PutRecords(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	ctx := logger.WithContext(context.Background())
 	is := is.New(t)
-	con := Destination{
-		client:     &kinesis.Client{},
-		httpClient: &http.Client{},
-	}
+	con := newDestination()
 
-	err := con.Configure(ctx, cfg)
+	streamName, cleanup := testutils.SetupTestStream(ctx, is)
+	defer cleanup()
+
+	err := con.Configure(ctx, testutils.GetTestConfig(streamName))
 	is.NoErr(err)
 
-	con.config.StreamARN = setupDestinationTest(ctx, con.client, is)
+	err = con.Open(ctx)
+	is.NoErr(err)
+
+	defer testutils.TeardownDestination(ctx, is, con)
 
 	cases := []struct {
 		testName      string
@@ -143,52 +178,28 @@ func TestWrite_PutRecords(t *testing.T) {
 			is.NoErr(err)
 			is.Equal(count, len(tt.records))
 
-			listShards, err := con.client.ListShards(ctx, &kinesis.ListShardsInput{
-				StreamARN: &con.config.StreamARN,
-			})
-			is.NoErr(err)
-
-			var recs []types.Record
-			for _, shard := range listShards.Shards {
-				si, err := con.client.GetShardIterator(ctx, &kinesis.GetShardIteratorInput{
-					ShardId:           shard.ShardId,
-					ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
-					StreamARN:         &con.config.StreamARN,
-				})
-				is.NoErr(err)
-
-				getRecs, err := con.client.GetRecords(ctx, &kinesis.GetRecordsInput{
-					StreamARN:     &con.config.StreamARN,
-					ShardIterator: si.ShardIterator,
-				})
-				is.NoErr(err)
-
-				recs = append(recs, getRecs.Records...)
-			}
-
+			recs := testutils.GetRecords(ctx, is, streamName)
 			is.Equal(count, len(recs))
 		})
 	}
-
-	cleanupTest(ctx, con.client, con.config.StreamARN)
-
-	err = con.Teardown(ctx)
-	is.NoErr(err)
 }
 
 func TestWrite_PutRecord(t *testing.T) {
 	logger := zerolog.New(zerolog.NewTestWriter(t))
 	ctx := logger.WithContext(context.Background())
 	is := is.New(t)
-	con := Destination{
-		client:     &kinesis.Client{},
-		httpClient: &http.Client{},
-	}
+	con := newDestination()
 
-	err := con.Configure(ctx, cfg)
+	streamName, cleanup := testutils.SetupTestStream(ctx, is)
+	defer cleanup()
+
+	err := con.Configure(ctx, testutils.GetTestConfig(streamName))
 	is.NoErr(err)
 
-	con.config.StreamARN = setupDestinationTest(ctx, con.client, is)
+	err = con.Open(ctx)
+	is.NoErr(err)
+
+	defer testutils.TeardownDestination(ctx, is, con)
 
 	cases := []struct {
 		testName                 string
@@ -216,37 +227,11 @@ func TestWrite_PutRecord(t *testing.T) {
 			is.NoErr(err)
 			is.Equal(count, len(tt.records))
 
-			listShards, err := con.client.ListShards(ctx, &kinesis.ListShardsInput{
-				StreamARN: &con.config.StreamARN,
-			})
-			is.NoErr(err)
-
-			var recs []types.Record
-			for _, shard := range listShards.Shards {
-				si, err := con.client.GetShardIterator(ctx, &kinesis.GetShardIteratorInput{
-					ShardId:           shard.ShardId,
-					ShardIteratorType: types.ShardIteratorTypeTrimHorizon,
-					StreamARN:         &con.config.StreamARN,
-				})
-				is.NoErr(err)
-
-				getRecs, err := con.client.GetRecords(ctx, &kinesis.GetRecordsInput{
-					StreamARN:     &con.config.StreamARN,
-					ShardIterator: si.ShardIterator,
-				})
-				is.NoErr(err)
-
-				recs = append(recs, getRecs.Records...)
-			}
+			recs := testutils.GetRecords(ctx, is, con.config.StreamName)
 
 			is.Equal(count, len(recs))
 		})
 	}
-
-	cleanupTest(ctx, con.client, con.config.StreamARN)
-
-	err = con.Teardown(ctx)
-	is.NoErr(err)
 }
 
 func makeRecords(count int, greaterThan5MB bool) []sdk.Record {
@@ -272,4 +257,12 @@ func makeRecords(count int, greaterThan5MB bool) []sdk.Record {
 		records = append(records, rec)
 	}
 	return records
+}
+
+func assertWrittenRecordsOnStream(
+	ctx context.Context, is *is.I,
+	streamName string, records []sdk.Record,
+) {
+	recs := testutils.GetRecords(ctx, is, streamName)
+	is.Equal(len(records), len(recs))
 }
