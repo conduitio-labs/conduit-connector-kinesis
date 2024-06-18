@@ -46,7 +46,7 @@ func (Config) Parameters() map[string]sdk.Parameter {
 			Validations: []sdk.Validation{},
 		},
 		"streamName": {
-			Default:     "",
+			Default:     "{{ index .Metadata \"opencdc.collection\" }}",
 			Description: "streamName is the name of the Kinesis Data Stream. It can contain a [Go template](https://pkg.go.dev/text/template) that will be executed for each record to determine the stream name. By default, the stream name is the value of the `opencdc.collection` metadata field.",
 			Type:        sdk.ParameterTypeString,
 			Validations: []sdk.Validation{},
