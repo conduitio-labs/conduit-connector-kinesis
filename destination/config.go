@@ -25,7 +25,7 @@ type Config struct {
 	// [Go template](https://pkg.go.dev/text/template) that will be executed
 	// for each record to determine the stream name. By default, the stream
 	// name is the value of the `opencdc.collection` metadata field.
-	StreamName string `json:"streamName"`
+	StreamName string `json:"streamName" default:"{{ index .Metadata \"opencdc.collection\" }}"`
 
 	// PartitionKeyTemplate accepts a go template as an argument, with the
 	// record being written as the main data context. If an empty template is
