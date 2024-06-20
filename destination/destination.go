@@ -21,10 +21,10 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
@@ -107,8 +107,7 @@ func (d *Destination) Open(ctx context.Context) error {
 		return nil
 	}
 
-	wait := common.ExponentialBackoff(time.Second)
-	for i := 0; i < 4; i++ {
+	err := backoff.Retry(func() error {
 		streamData, err := d.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 			StreamName: &d.config.StreamName,
 		})
@@ -117,18 +116,19 @@ func (d *Destination) Open(ctx context.Context) error {
 		}
 
 		switch status := streamData.StreamDescription.StreamStatus; status {
-		case types.StreamStatusCreating, types.StreamStatusUpdating:
-		case types.StreamStatusDeleting:
-			return fmt.Errorf("stream %s is being deleted", d.config.StreamName)
+		case types.StreamStatusCreating, types.StreamStatusUpdating, types.StreamStatusDeleting:
 		case types.StreamStatusActive:
 			sdk.Logger(ctx).Info().Msg("destination ready to be written to")
 			return nil
 		}
 
-		wait()
+		return fmt.Errorf("non ready status %s", streamData.StreamDescription.StreamStatus)
+	}, backoff.NewExponentialBackOff())
+	if err != nil {
+		return fmt.Errorf("failed to wait for stream %s to be ready: %w", d.config.StreamName, err)
 	}
 
-	return fmt.Errorf("timed out waiting for stream %s to be ready", d.config.StreamName)
+	return nil
 }
 
 func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string, error) {

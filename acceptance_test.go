@@ -16,6 +16,7 @@ package kinesis
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -28,6 +29,8 @@ import (
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
 	"go.uber.org/goleak"
+
+	"github.com/cenkalti/backoff/v4"
 )
 
 func TestAcceptance(t *testing.T) {
@@ -104,22 +107,23 @@ func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 	})
 	is.NoErr(err)
 
-	wait := common.ExponentialBackoff(100 * time.Millisecond)
-
-	for {
+	err = backoff.Retry(func() error {
 		describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 			StreamName: &streamName,
 		})
-		is.NoErr(err)
+		if err != nil {
+			return err
+		}
 
 		isStreamReadyForTest := describe.StreamDescription.StreamStatus == types.StreamStatusActive
 		if isStreamReadyForTest {
 			cfg["streamName"] = *describe.StreamDescription.StreamName
-			break
+			return nil
 		}
 
-		wait()
-	}
+		return errors.New("stream not ready")
+	}, backoff.NewExponentialBackOff())
+	is.NoErr(err)
 }
 
 func cleanupAcceptanceTestStream(t *testing.T, cfg map[string]string) {

@@ -16,12 +16,13 @@ package testutils
 
 import (
 	"context"
+	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/google/uuid"
@@ -88,23 +89,20 @@ func SetupTestStream(ctx context.Context, is *is.I) (streamName string, cleanup 
 	})
 	is.NoErr(err)
 
-	wait := common.ExponentialBackoff(100 * time.Millisecond)
-	for i := 0; i < 10; i++ {
-		wait()
-
+	err = backoff.Retry(func() error {
 		streamStatus, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 			StreamName: &streamName,
 		})
-		is.NoErr(err)
-
-		if streamStatus.StreamDescription.StreamStatus == types.StreamStatusActive {
-			goto streamIsActive
+		if err != nil {
+			return fmt.Errorf("failed to describe stream: %w", err)
+		} else if streamStatus.StreamDescription.StreamStatus == types.StreamStatusActive {
+			return nil
 		}
+		return fmt.Errorf("stream %s is not active", streamName)
+	}, backoff.NewExponentialBackOff())
+	if err != nil {
+		is.Fail() // stream not ready
 	}
-
-	is.Fail() // stream not ready
-
-streamIsActive:
 
 	return streamName, func() {
 		_, err := client.DeleteStream(ctx, &kinesis.DeleteStreamInput{
