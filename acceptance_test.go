@@ -17,6 +17,7 @@ package kinesis
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -24,13 +25,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
 	"go.uber.org/goleak"
-
-	"github.com/cenkalti/backoff/v4"
 )
 
 func TestAcceptance(t *testing.T) {
@@ -112,7 +112,7 @@ func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 			StreamName: &streamName,
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to describe stream: %w", err)
 		}
 
 		isStreamReadyForTest := describe.StreamDescription.StreamStatus == types.StreamStatusActive
