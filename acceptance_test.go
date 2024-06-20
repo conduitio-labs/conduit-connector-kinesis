@@ -16,6 +16,8 @@ package kinesis
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
@@ -23,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
+	"github.com/cenkalti/backoff/v4"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
 	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	sdk "github.com/conduitio/conduit-connector-sdk"
@@ -104,22 +107,23 @@ func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 	})
 	is.NoErr(err)
 
-	wait := common.ExponentialBackoff(100 * time.Millisecond)
-
-	for {
+	err = backoff.Retry(func() error {
 		describe, err := client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 			StreamName: &streamName,
 		})
-		is.NoErr(err)
+		if err != nil {
+			return fmt.Errorf("failed to describe stream: %w", err)
+		}
 
 		isStreamReadyForTest := describe.StreamDescription.StreamStatus == types.StreamStatusActive
 		if isStreamReadyForTest {
 			cfg["streamName"] = *describe.StreamDescription.StreamName
-			break
+			return nil
 		}
 
-		wait()
-	}
+		return errors.New("stream not ready")
+	}, backoff.NewExponentialBackOff())
+	is.NoErr(err)
 }
 
 func cleanupAcceptanceTestStream(t *testing.T, cfg map[string]string) {
