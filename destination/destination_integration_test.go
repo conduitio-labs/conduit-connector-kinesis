@@ -266,3 +266,75 @@ func assertWrittenRecordsOnStream(
 	recs := testutils.GetRecords(ctx, is, streamName)
 	is.Equal(len(records), len(recs))
 }
+
+func TestWrite_UpsertStream(t *testing.T) {
+
+	t.Run("upsert stream in single collection mode", func(t *testing.T) {
+		logger := zerolog.New(zerolog.NewTestWriter(t))
+		ctx := logger.WithContext(context.Background())
+		is := is.New(t)
+		con := newDestination()
+		testClient := testutils.NewTestClient(ctx, is)
+
+		streamName := testutils.RandomStreamName("upsert_stream")
+		defer testutils.DeleteStream(ctx, is, testClient, streamName)
+
+		err := con.Configure(ctx, testutils.GetTestConfig(streamName))
+		is.NoErr(err)
+
+		err = con.Open(ctx)
+		is.NoErr(err)
+
+		defer testutils.TeardownDestination(ctx, is, con)
+
+		recs := testRecordsStreamOnColField(t, streamName)
+
+		written, err := con.Write(ctx, recs)
+		is.NoErr(err)
+		is.Equal(written, len(recs))
+
+		assertWrittenRecordsOnStream(ctx, is, streamName, recs)
+	})
+
+	t.Run("upsert stream in multi collection mode", func(t *testing.T) {
+		logger := zerolog.New(zerolog.NewTestWriter(t))
+		ctx := logger.WithContext(context.Background())
+		is := is.New(t)
+		con := newDestination()
+		testClient := testutils.NewTestClient(ctx, is)
+
+		streamName1 := testutils.RandomStreamName("upsert_stream")
+		defer testutils.DeleteStream(ctx, is, testClient, streamName1)
+
+		streamName2 := testutils.RandomStreamName("upsert_stream")
+		defer testutils.DeleteStream(ctx, is, testClient, streamName2)
+
+		streamName3 := testutils.RandomStreamName("upsert_stream")
+		defer testutils.DeleteStream(ctx, is, testClient, streamName3)
+
+		// streamName is fetched from `opencdc.collection` field
+		err := con.Configure(ctx, testutils.GetTestConfig(""))
+		is.NoErr(err)
+
+		err = con.Open(ctx)
+		is.NoErr(err)
+
+		defer testutils.TeardownDestination(ctx, is, con)
+
+		var recs []sdk.Record
+		recs1 := testRecordsStreamOnColField(t, streamName1)
+		recs = append(recs, recs1...)
+		recs2 := testRecordsStreamOnColField(t, streamName2)
+		recs = append(recs, recs2...)
+		recs3 := testRecordsStreamOnColField(t, streamName3)
+		recs = append(recs, recs3...)
+
+		written, err := con.Write(ctx, recs)
+		is.NoErr(err)
+		is.Equal(written, len(recs))
+
+		assertWrittenRecordsOnStream(ctx, is, streamName1, recs1)
+		assertWrittenRecordsOnStream(ctx, is, streamName2, recs2)
+		assertWrittenRecordsOnStream(ctx, is, streamName3, recs3)
+	})
+}

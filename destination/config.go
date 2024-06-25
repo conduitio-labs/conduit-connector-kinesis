@@ -33,4 +33,8 @@ type Config struct {
 	// record key string exceeds 256 it will be trimmed down from start to fit
 	// the partition key size
 	PartitionKeyTemplate string `json:"partitionKeyTemplate"`
+
+	// UpsertStream specifies whether the destination should create a new stream
+	// or not whenever writing to a stream that does not exist.
+	UpsertStream bool `json:"upsertStream" default:"true"`
 }

@@ -125,7 +125,17 @@ func (d *Destination) Open(ctx context.Context) error {
 		return fmt.Errorf("non ready status %s", streamData.StreamDescription.StreamStatus)
 	}, backoff.NewExponentialBackOff())
 	if err != nil {
-		return fmt.Errorf("failed to wait for stream %s to be ready: %w", d.config.StreamName, err)
+		if !d.config.UpsertStream {
+			return fmt.Errorf("failed to wait for stream %s to be ready: %w", d.config.StreamName, err)
+		}
+
+		sdk.Logger(ctx).Info().Msg("stream not ready, creating new stream")
+		_, err = d.client.CreateStream(ctx, &kinesis.CreateStreamInput{
+			StreamName: &d.config.StreamName,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create stream %s: %w", d.config.StreamName, err)
+		}
 	}
 
 	return nil
@@ -174,8 +184,8 @@ func (d *Destination) createPutRequestInput(
 	}
 
 	return &kinesis.PutRecordsInput{
-		StreamName: &streamName,
 		Records:    entries,
+		StreamName: &streamName,
 	}, nil
 }
 
