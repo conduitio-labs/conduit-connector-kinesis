@@ -321,7 +321,7 @@ func (d *Destination) doesStreamExist(ctx context.Context, streamName string) (b
 			return false, nil
 		}
 
-		return false, err
+		return false, fmt.Errorf("failed to describe stream %s: %w", streamName, err)
 	}
 
 	return true, nil

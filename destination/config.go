@@ -34,7 +34,7 @@ type Config struct {
 	// the partition key size
 	PartitionKeyTemplate string `json:"partitionKeyTemplate"`
 
-	// CreateIfNotExists specifies whether the destination should create a new stream
-	// or not whenever writing to a stream that does not exist.
+	// CreateIfNotExists makes the destination create a new stream if it does
+	// not exist when writing records.
 	CreateIfNotExists bool `json:"createIfNotExists" default:"true"`
 }
