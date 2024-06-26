@@ -310,7 +310,7 @@ func isGoTemplate(template string) bool {
 	return strings.HasPrefix(template, "{{") && strings.HasSuffix(template, "}}")
 }
 
-func (d *Destination) doesStreamExist(ctx context.Context, streamName string) (bool, error) {
+func (d *Destination) streamExists(ctx context.Context, name string) (bool, error) {
 	describeStreamInput := kinesis.DescribeStreamSummaryInput{
 		StreamName: &streamName,
 	}
