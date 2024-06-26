@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
@@ -339,12 +340,28 @@ func (d *Destination) createStream(ctx context.Context, streamName string) error
 }
 
 func (d *Destination) waitForStreamToBeReady(ctx context.Context, streamName string) error {
-	err := backoff.Retry(func() error {
-		_, err := d.client.DescribeStreamSummary(ctx, &kinesis.DescribeStreamSummaryInput{
-			StreamName: &streamName,
-		})
-		return err
-	}, backoff.NewExponentialBackOff())
+	err := backoff.RetryNotify(func() error {
+		params := &kinesis.DescribeStreamSummaryInput{StreamName: &streamName}
+		streamData, err := d.client.DescribeStreamSummary(ctx, params)
+		if err != nil {
+			return fmt.Errorf("failed to describe stream: %w", err)
+		}
+
+		status := streamData.StreamDescriptionSummary.StreamStatus
+		switch status {
+		case types.StreamStatusCreating, types.StreamStatusUpdating, types.StreamStatusDeleting:
+		case types.StreamStatusActive:
+			sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+			return nil
+		}
+
+		return fmt.Errorf("non ready status %s", status)
+	}, backoff.NewExponentialBackOff(), func(err error, dur time.Duration) {
+		sdk.Logger(ctx).Info().
+			Str("streamName", streamName).
+			Err(err).
+			Msgf("waiting for stream to be ready, retrying in %s", dur.String())
+	})
 	if err != nil {
 		return fmt.Errorf("failed to wait for stream %s to be ready: %w", streamName, err)
 	}
