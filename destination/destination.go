@@ -110,7 +110,7 @@ func (d *Destination) Open(ctx context.Context) error {
 	}
 
 	if d.config.CreateIfNotExists {
-		exists, err := d.doesStreamExist(ctx, d.config.StreamName)
+		exists, err := d.streamExists(ctx, d.config.StreamName)
 		if err != nil {
 			return fmt.Errorf("failed to check if stream exists: %w", err)
 		} else if exists {
@@ -312,7 +312,7 @@ func isGoTemplate(template string) bool {
 
 func (d *Destination) streamExists(ctx context.Context, name string) (bool, error) {
 	describeStreamInput := kinesis.DescribeStreamSummaryInput{
-		StreamName: &streamName,
+		StreamName: &name,
 	}
 	_, err := d.client.DescribeStreamSummary(ctx, &describeStreamInput)
 	if err != nil {
@@ -321,7 +321,7 @@ func (d *Destination) streamExists(ctx context.Context, name string) (bool, erro
 			return false, nil
 		}
 
-		return false, fmt.Errorf("failed to describe stream %s: %w", streamName, err)
+		return false, fmt.Errorf("failed to describe stream %s: %w", name, err)
 	}
 
 	return true, nil
