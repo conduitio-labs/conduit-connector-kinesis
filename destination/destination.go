@@ -340,7 +340,14 @@ func (d *Destination) createStream(ctx context.Context, streamName string) error
 }
 
 func (d *Destination) waitForStreamToBeReady(ctx context.Context, streamName string) error {
-	err := backoff.RetryNotify(func() error {
+	exists, err := d.streamExists(ctx, streamName)
+	if err != nil {
+		return fmt.Errorf("failed to check if stream exists: %w", err)
+	} else if !exists {
+		return fmt.Errorf("stream %s does not exist", streamName)
+	}
+
+	err = backoff.RetryNotify(func() error {
 		params := &kinesis.DescribeStreamSummaryInput{StreamName: &streamName}
 		streamData, err := d.client.DescribeStreamSummary(ctx, params)
 		if err != nil {

@@ -141,7 +141,7 @@ func (s *streamProvisioner) ensureStreamsExist(
 			continue
 		}
 
-		ok, err := destination.doesStreamExist(ctx, streamName)
+		ok, err := destination.streamExists(ctx, streamName)
 		if err != nil {
 			return fmt.Errorf("failed to check if stream %s exists: %w", streamName, err)
 		}

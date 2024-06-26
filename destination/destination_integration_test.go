@@ -17,9 +17,13 @@ package destination
 import (
 	"context"
 	"crypto/rand"
+	"errors"
+	"fmt"
 	"strconv"
+	"strings"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
@@ -345,5 +349,62 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 		assertWrittenRecordsOnStream(ctx, is, streamName1, recs1)
 		assertWrittenRecordsOnStream(ctx, is, streamName2, recs2)
 		assertWrittenRecordsOnStream(ctx, is, streamName3, recs3)
+	})
+
+	t.Run("errors if option set to false in single collection mode", func(t *testing.T) {
+		logger := zerolog.New(zerolog.NewTestWriter(t))
+		ctx := logger.WithContext(context.Background())
+		is := is.New(t)
+		con := newDestination()
+
+		streamName := testutils.RandomStreamName("create_stream")
+
+		config := testutils.GetTestConfig(streamName)
+		config["createIfNotExists"] = "false"
+		err := con.Configure(ctx, config)
+		is.NoErr(err)
+
+		err = con.Open(ctx) // error is expected, since stream doesn't exist
+		is.True(err != nil)
+
+		// changing the public api just to check for a specific error message
+		// feels a bit of an overkill, so instead we'll just check the error.
+
+		errMsg := err.Error()
+		want := fmt.Sprintf("stream %s does not exist", streamName)
+		if !strings.Contains(errMsg, want) {
+			t.Fatalf("expected error to contain %s, got %s", want, errMsg)
+		}
+	})
+
+	t.Run("errors if option set to false in multi collection mode", func(t *testing.T) {
+		logger := zerolog.New(zerolog.NewTestWriter(t))
+		ctx := logger.WithContext(context.Background())
+		is := is.New(t)
+		con := newDestination()
+
+		config := testutils.GetTestConfig("")
+		config["createIfNotExists"] = "false"
+		err := con.Configure(ctx, config)
+		is.NoErr(err)
+
+		err = con.Open(ctx) // error is expected, since stream doesn't exist
+		is.NoErr(err)
+		defer testutils.TeardownDestination(ctx, is, con)
+
+		recs := testRecordsStreamOnColField(t, "non-existent-stream")
+
+		written, err := con.Write(ctx, recs)
+		is.True(err != nil)
+		is.Equal(written, 0)
+
+		// Here, instead of checking the error message, we'll just check the
+		// error type. The write method directly interacts with the AWS SDK,
+		// so we can just check the error type.
+
+		var notFoundErr *types.ResourceNotFoundException
+		if !errors.As(err, &notFoundErr) {
+			t.Fatalf("expected error to be of type %T, got %T", notFoundErr, err)
+		}
 	})
 }
