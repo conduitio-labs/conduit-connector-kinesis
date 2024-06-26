@@ -124,6 +124,7 @@ func (d *Destination) Open(ctx context.Context) error {
 	if err := d.waitForStreamToBeReady(ctx, d.config.StreamName); err != nil {
 		return fmt.Errorf("failed to create stream %s: %w", d.config.StreamName, err)
 	}
+	sdk.Logger(ctx).Info().Msg("destination ready to be written to")
 
 	return nil
 }
@@ -316,7 +317,7 @@ func (d *Destination) doesStreamExist(ctx context.Context, streamName string) (b
 	if err != nil {
 		var notFoundErr *types.ResourceNotFoundException
 		if errors.As(err, &notFoundErr) {
-			return false, err
+			return false, nil
 		}
 
 		return false, err
@@ -332,28 +333,21 @@ func (d *Destination) createStream(ctx context.Context, streamName string) error
 	if err != nil {
 		return fmt.Errorf("failed to create stream %s: %w", streamName, err)
 	}
+	sdk.Logger(ctx).Info().Msg("created stream")
 
 	return nil
 }
 
 func (d *Destination) waitForStreamToBeReady(ctx context.Context, streamName string) error {
 	err := backoff.Retry(func() error {
-		describeStreamInput := kinesis.DescribeStreamSummaryInput{
+		_, err := d.client.DescribeStreamSummary(ctx, &kinesis.DescribeStreamSummaryInput{
 			StreamName: &streamName,
-		}
-		_, err := d.client.DescribeStreamSummary(ctx, &describeStreamInput)
-		if err != nil {
-			var notFoundErr *types.ResourceNotFoundException
-			if errors.As(err, &notFoundErr) {
-				return err
-			}
-			return err
-		}
-		sdk.Logger(ctx).Info().Msg("destination ready to be written to")
-		return nil
+		})
+		return err
 	}, backoff.NewExponentialBackOff())
 	if err != nil {
 		return fmt.Errorf("failed to wait for stream %s to be ready: %w", streamName, err)
 	}
+
 	return nil
 }
