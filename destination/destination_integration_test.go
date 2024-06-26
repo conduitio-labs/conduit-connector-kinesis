@@ -267,19 +267,25 @@ func assertWrittenRecordsOnStream(
 	is.Equal(len(records), len(recs))
 }
 
-func TestWrite_UpsertStream(t *testing.T) {
+func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 
-	t.Run("upsert stream in single collection mode", func(t *testing.T) {
+	getTestConfig := func(streamName string) map[string]string {
+		cfg := testutils.GetTestConfig(streamName)
+		cfg["createIfNotExists"] = "true"
+		return cfg
+	}
+
+	t.Run("create stream in single collection mode", func(t *testing.T) {
 		logger := zerolog.New(zerolog.NewTestWriter(t))
 		ctx := logger.WithContext(context.Background())
 		is := is.New(t)
 		con := newDestination()
 		testClient := testutils.NewTestClient(ctx, is)
 
-		streamName := testutils.RandomStreamName("upsert_stream")
+		streamName := testutils.RandomStreamName("create_stream")
 		defer testutils.DeleteStream(ctx, is, testClient, streamName)
 
-		err := con.Configure(ctx, testutils.GetTestConfig(streamName))
+		err := con.Configure(ctx, getTestConfig(streamName))
 		is.NoErr(err)
 
 		err = con.Open(ctx)
@@ -296,24 +302,28 @@ func TestWrite_UpsertStream(t *testing.T) {
 		assertWrittenRecordsOnStream(ctx, is, streamName, recs)
 	})
 
-	t.Run("upsert stream in multi collection mode", func(t *testing.T) {
+	t.Run("create stream in multi collection mode", func(t *testing.T) {
 		logger := zerolog.New(zerolog.NewTestWriter(t))
 		ctx := logger.WithContext(context.Background())
 		is := is.New(t)
 		con := newDestination()
 		testClient := testutils.NewTestClient(ctx, is)
 
-		streamName1 := testutils.RandomStreamName("upsert_stream")
-		defer testutils.DeleteStream(ctx, is, testClient, streamName1)
+		// create 1 stream beforehand and 2 stream names. The destination should
+		// be able to write to the first stream without any
+		// "streamAlreadyExists" error and create the 2 later streams.
 
-		streamName2 := testutils.RandomStreamName("upsert_stream")
+		streamName1, cleanupStream1 := testutils.SetupTestStream(ctx, is)
+		defer cleanupStream1()
+
+		streamName2 := testutils.RandomStreamName("create_stream")
 		defer testutils.DeleteStream(ctx, is, testClient, streamName2)
 
-		streamName3 := testutils.RandomStreamName("upsert_stream")
+		streamName3 := testutils.RandomStreamName("create_stream")
 		defer testutils.DeleteStream(ctx, is, testClient, streamName3)
 
 		// streamName is fetched from `opencdc.collection` field
-		err := con.Configure(ctx, testutils.GetTestConfig(""))
+		err := con.Configure(ctx, getTestConfig(""))
 		is.NoErr(err)
 
 		err = con.Open(ctx)

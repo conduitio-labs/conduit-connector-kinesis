@@ -16,6 +16,7 @@ package destination
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -107,35 +108,21 @@ func (d *Destination) Open(ctx context.Context) error {
 		return nil
 	}
 
-	err := backoff.Retry(func() error {
-		streamData, err := d.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-			StreamName: &d.config.StreamName,
-		})
+	if d.config.CreateIfNotExists {
+		exists, err := d.doesStreamExist(ctx, d.config.StreamName)
 		if err != nil {
-			return fmt.Errorf("failed to describe stream: %w", err)
-		}
-
-		switch status := streamData.StreamDescription.StreamStatus; status {
-		case types.StreamStatusCreating, types.StreamStatusUpdating, types.StreamStatusDeleting:
-		case types.StreamStatusActive:
-			sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+			return fmt.Errorf("failed to check if stream exists: %w", err)
+		} else if exists {
 			return nil
 		}
 
-		return fmt.Errorf("non ready status %s", streamData.StreamDescription.StreamStatus)
-	}, backoff.NewExponentialBackOff())
-	if err != nil {
-		if !d.config.UpsertStream {
-			return fmt.Errorf("failed to wait for stream %s to be ready: %w", d.config.StreamName, err)
-		}
-
-		sdk.Logger(ctx).Info().Msg("stream not ready, creating new stream")
-		_, err = d.client.CreateStream(ctx, &kinesis.CreateStreamInput{
-			StreamName: &d.config.StreamName,
-		})
-		if err != nil {
+		if err := d.createStream(ctx, d.config.StreamName); err != nil {
 			return fmt.Errorf("failed to create stream %s: %w", d.config.StreamName, err)
 		}
+	}
+
+	if err := d.waitForStreamToBeReady(ctx, d.config.StreamName); err != nil {
+		return fmt.Errorf("failed to create stream %s: %w", d.config.StreamName, err)
 	}
 
 	return nil
@@ -241,6 +228,9 @@ func (s *singleStreamWriter) Write(ctx context.Context, records []sdk.Record) (i
 type multiStreamWriter struct {
 	destination      *Destination
 	streamNameParser streamNameParser
+
+	// if nil, the destination will not try to create streams if they don't exist
+	streamProvisioner *streamProvisioner
 }
 
 func newMultiStreamWriterFromTemplate(destination *Destination, streamName string) (*multiStreamWriter, error) {
@@ -248,13 +238,29 @@ func newMultiStreamWriterFromTemplate(destination *Destination, streamName strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to create streamName parser: %w", err)
 	}
-	return &multiStreamWriter{destination: destination, streamNameParser: parser}, nil
+
+	var streamProvisioner *streamProvisioner
+	if destination.config.CreateIfNotExists {
+		streamProvisioner = newStreamProvisioner()
+	}
+
+	return &multiStreamWriter{
+		destination:       destination,
+		streamProvisioner: streamProvisioner,
+		streamNameParser:  parser,
+	}, nil
 }
 
 func newMultiStreamWriterFromOpencdcCollection(destination *Destination) *multiStreamWriter {
+	var streamProvisioner *streamProvisioner
+	if destination.config.CreateIfNotExists {
+		streamProvisioner = newStreamProvisioner()
+	}
+
 	return &multiStreamWriter{
-		destination:      destination,
-		streamNameParser: &fromColFieldParser{},
+		destination:       destination,
+		streamProvisioner: streamProvisioner,
+		streamNameParser:  &fromColFieldParser{},
 	}
 }
 
@@ -262,6 +268,13 @@ func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (in
 	batches, err := parseBatches(records, m.streamNameParser)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse batches: %w", err)
+	}
+
+	if m.streamProvisioner != nil {
+		err := m.streamProvisioner.ensureStreamsExist(ctx, m.destination, batches)
+		if err != nil {
+			return 0, fmt.Errorf("failed to ensure streams exist: %w", err)
+		}
 	}
 
 	var written int
@@ -293,4 +306,54 @@ func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (in
 
 func isGoTemplate(template string) bool {
 	return strings.HasPrefix(template, "{{") && strings.HasSuffix(template, "}}")
+}
+
+func (d *Destination) doesStreamExist(ctx context.Context, streamName string) (bool, error) {
+	describeStreamInput := kinesis.DescribeStreamSummaryInput{
+		StreamName: &streamName,
+	}
+	_, err := d.client.DescribeStreamSummary(ctx, &describeStreamInput)
+	if err != nil {
+		var notFoundErr *types.ResourceNotFoundException
+		if errors.As(err, &notFoundErr) {
+			return false, err
+		}
+
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (d *Destination) createStream(ctx context.Context, streamName string) error {
+	_, err := d.client.CreateStream(ctx, &kinesis.CreateStreamInput{
+		StreamName: &streamName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create stream %s: %w", streamName, err)
+	}
+
+	return nil
+}
+
+func (d *Destination) waitForStreamToBeReady(ctx context.Context, streamName string) error {
+	err := backoff.Retry(func() error {
+		describeStreamInput := kinesis.DescribeStreamSummaryInput{
+			StreamName: &streamName,
+		}
+		_, err := d.client.DescribeStreamSummary(ctx, &describeStreamInput)
+		if err != nil {
+			var notFoundErr *types.ResourceNotFoundException
+			if errors.As(err, &notFoundErr) {
+				return err
+			}
+			return err
+		}
+		sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+		return nil
+	}, backoff.NewExponentialBackOff())
+	if err != nil {
+		return fmt.Errorf("failed to wait for stream %s to be ready: %w", streamName, err)
+	}
+	return nil
 }

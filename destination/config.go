@@ -34,7 +34,7 @@ type Config struct {
 	// the partition key size
 	PartitionKeyTemplate string `json:"partitionKeyTemplate"`
 
-	// UpsertStream specifies whether the destination should create a new stream
+	// CreateIfNotExists specifies whether the destination should create a new stream
 	// or not whenever writing to a stream that does not exist.
-	UpsertStream bool `json:"upsertStream" default:"true"`
+	CreateIfNotExists bool `json:"createIfNotExists" default:"true"`
 }

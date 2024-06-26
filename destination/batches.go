@@ -15,11 +15,13 @@
 package destination
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"text/template"
 
 	sdk "github.com/conduitio/conduit-connector-sdk"
+	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 type streamNameParser interface {
@@ -118,4 +120,47 @@ func parseBatches(records []sdk.Record, parser streamNameParser) ([]recordBatch,
 	}
 
 	return batches, nil
+}
+
+type streamProvisioner struct {
+	existingStreams cmap.ConcurrentMap[string, bool]
+}
+
+func newStreamProvisioner() *streamProvisioner {
+	return &streamProvisioner{existingStreams: cmap.New[bool]()}
+}
+
+func (s *streamProvisioner) ensureStreamsExist(
+	ctx context.Context,
+	destination *Destination,
+	batches []recordBatch,
+) error {
+	for _, batch := range batches {
+		streamName := batch.streamName
+		if _, ok := s.existingStreams.Get(streamName); ok {
+			continue
+		}
+
+		ok, err := destination.doesStreamExist(ctx, streamName)
+		if err != nil {
+			return fmt.Errorf("failed to check if stream %s exists: %w", streamName, err)
+		}
+
+		if ok {
+			s.existingStreams.Set(streamName, true)
+			continue
+		}
+
+		if err := destination.createStream(ctx, streamName); err != nil {
+			return fmt.Errorf("failed to create stream %s: %w", streamName, err)
+		}
+
+		if err := destination.waitForStreamToBeReady(ctx, streamName); err != nil {
+			return fmt.Errorf("failed to wait for stream %s to be ready: %w", streamName, err)
+		}
+
+		s.existingStreams.Set(streamName, true)
+	}
+
+	return nil
 }
