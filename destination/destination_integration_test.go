@@ -388,7 +388,7 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 		err := con.Configure(ctx, config)
 		is.NoErr(err)
 
-		err = con.Open(ctx) // error is expected, since stream doesn't exist
+		err = con.Open(ctx)
 		is.NoErr(err)
 		defer testutils.TeardownDestination(ctx, is, con)
 
