@@ -9,6 +9,12 @@ import (
 
 func (Config) Parameters() map[string]sdk.Parameter {
 	return map[string]sdk.Parameter{
+		"auto.create.streams.enable": {
+			Default:     "true",
+			Description: "auto.create.streams.enable makes the destination create a new stream if it does not exist when writing records.",
+			Type:        sdk.ParameterTypeBool,
+			Validations: []sdk.Validation{},
+		},
 		"aws.accessKeyId": {
 			Default:     "",
 			Description: "aws.accessKeyId is the amazon access key id",
@@ -37,12 +43,6 @@ func (Config) Parameters() map[string]sdk.Parameter {
 			Default:     "",
 			Description: "aws.url is the URL for endpoint override - testing/dry-run only",
 			Type:        sdk.ParameterTypeString,
-			Validations: []sdk.Validation{},
-		},
-		"createIfNotExists": {
-			Default:     "true",
-			Description: "createIfNotExists makes the destination create a new stream if it does not exist when writing records.",
-			Type:        sdk.ParameterTypeBool,
 			Validations: []sdk.Validation{},
 		},
 		"partitionKeyTemplate": {

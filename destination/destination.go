@@ -109,7 +109,7 @@ func (d *Destination) Open(ctx context.Context) error {
 		return nil
 	}
 
-	if d.config.CreateIfNotExists {
+	if d.config.AutoCreateStreams {
 		exists, err := d.streamExists(ctx, d.config.StreamName)
 		if err != nil {
 			return fmt.Errorf("failed to check if stream exists: %w", err)
@@ -242,7 +242,7 @@ func newMultiStreamWriterFromTemplate(destination *Destination, streamName strin
 	}
 
 	var streamProvisioner *streamProvisioner
-	if destination.config.CreateIfNotExists {
+	if destination.config.AutoCreateStreams {
 		streamProvisioner = newStreamProvisioner()
 	}
 
@@ -255,7 +255,7 @@ func newMultiStreamWriterFromTemplate(destination *Destination, streamName strin
 
 func newMultiStreamWriterFromOpencdcCollection(destination *Destination) *multiStreamWriter {
 	var streamProvisioner *streamProvisioner
-	if destination.config.CreateIfNotExists {
+	if destination.config.AutoCreateStreams {
 		streamProvisioner = newStreamProvisioner()
 	}
 
