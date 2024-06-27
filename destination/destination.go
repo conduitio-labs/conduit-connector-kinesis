@@ -274,7 +274,7 @@ func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (in
 
 	if m.streamProvisioner != nil {
 		if err := m.streamProvisioner.ensureStreamsExist(ctx, m.destination, batches); err != nil {
-		        return 0, fmt.Errorf("failed to ensure streams exist: %w", err)
+			return 0, fmt.Errorf("failed to ensure streams exist: %w", err)
 		}
 	}
 
