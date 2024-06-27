@@ -118,12 +118,12 @@ func (d *Destination) Open(ctx context.Context) error {
 		}
 
 		if err := d.createStream(ctx, d.config.StreamName); err != nil {
-			return fmt.Errorf("failed to create stream %s: %w", d.config.StreamName, err)
+			return err
 		}
 	}
 
 	if err := d.waitForStreamToBeReady(ctx, d.config.StreamName); err != nil {
-		return fmt.Errorf("failed to create stream %s: %w", d.config.StreamName, err)
+		return fmt.Errorf("stream not ready %s: %w", d.config.StreamName, err)
 	}
 	sdk.Logger(ctx).Info().Msg("destination ready to be written to")
 
