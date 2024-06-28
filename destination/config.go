@@ -36,5 +36,5 @@ type Config struct {
 
 	// AutoCreateStreams makes the destination create a new stream if it does
 	// not exist when writing records.
-	AutoCreateStreams bool `json:"auto.create.streams.enable" default:"true"`
+	AutoCreateStreams bool `json:"auto.create.streams" default:"true"`
 }
