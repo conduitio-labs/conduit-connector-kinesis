@@ -33,4 +33,8 @@ type Config struct {
 	// record key string exceeds 256 it will be trimmed down from start to fit
 	// the partition key size
 	PartitionKeyTemplate string `json:"partitionKeyTemplate"`
+
+	// AutoCreateStreams makes the destination create a new stream if it does
+	// not exist when writing records.
+	AutoCreateStreams bool `json:"auto.create.streams" default:"true"`
 }

@@ -9,6 +9,12 @@ import (
 
 func (Config) Parameters() map[string]sdk.Parameter {
 	return map[string]sdk.Parameter{
+		"auto.create.streams": {
+			Default:     "true",
+			Description: "auto.create.streams makes the destination create a new stream if it does not exist when writing records.",
+			Type:        sdk.ParameterTypeBool,
+			Validations: []sdk.Validation{},
+		},
 		"aws.accessKeyId": {
 			Default:     "",
 			Description: "aws.accessKeyId is the amazon access key id",

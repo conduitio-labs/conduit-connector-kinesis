@@ -113,6 +113,14 @@ func SetupTestStream(ctx context.Context, is *is.I) (streamName string, cleanup 
 	}
 }
 
+func DeleteStream(ctx context.Context, is *is.I, client *kinesis.Client, streamName string) {
+	_, err := client.DeleteStream(ctx, &kinesis.DeleteStreamInput{
+		EnforceConsumerDeletion: aws.Bool(true),
+		StreamName:              &streamName,
+	})
+	is.NoErr(err)
+}
+
 func TeardownDestination(ctx context.Context, is *is.I, con sdk.Destination) {
 	err := con.Teardown(ctx)
 	is.NoErr(err)

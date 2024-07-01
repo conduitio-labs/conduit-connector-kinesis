@@ -16,11 +16,13 @@ package destination
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
@@ -107,26 +109,23 @@ func (d *Destination) Open(ctx context.Context) error {
 		return nil
 	}
 
-	err := backoff.Retry(func() error {
-		streamData, err := d.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
-			StreamName: &d.config.StreamName,
-		})
+	if d.config.AutoCreateStreams {
+		exists, err := d.streamExists(ctx, d.config.StreamName)
 		if err != nil {
-			return fmt.Errorf("failed to describe stream: %w", err)
-		}
-
-		switch status := streamData.StreamDescription.StreamStatus; status {
-		case types.StreamStatusCreating, types.StreamStatusUpdating, types.StreamStatusDeleting:
-		case types.StreamStatusActive:
-			sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+			return fmt.Errorf("failed to check if stream exists: %w", err)
+		} else if exists {
 			return nil
 		}
 
-		return fmt.Errorf("non ready status %s", streamData.StreamDescription.StreamStatus)
-	}, backoff.NewExponentialBackOff())
-	if err != nil {
-		return fmt.Errorf("failed to wait for stream %s to be ready: %w", d.config.StreamName, err)
+		if err := d.createStream(ctx, d.config.StreamName); err != nil {
+			return err
+		}
 	}
+
+	if err := d.waitForStreamToBeReady(ctx, d.config.StreamName); err != nil {
+		return fmt.Errorf("stream not ready %s: %w", d.config.StreamName, err)
+	}
+	sdk.Logger(ctx).Info().Msg("destination ready to be written to")
 
 	return nil
 }
@@ -174,8 +173,8 @@ func (d *Destination) createPutRequestInput(
 	}
 
 	return &kinesis.PutRecordsInput{
-		StreamName: &streamName,
 		Records:    entries,
+		StreamName: &streamName,
 	}, nil
 }
 
@@ -231,6 +230,9 @@ func (s *singleStreamWriter) Write(ctx context.Context, records []sdk.Record) (i
 type multiStreamWriter struct {
 	destination      *Destination
 	streamNameParser streamNameParser
+
+	// if nil, the destination will not try to create streams if they don't exist
+	streamProvisioner *streamProvisioner
 }
 
 func newMultiStreamWriterFromTemplate(destination *Destination, streamName string) (*multiStreamWriter, error) {
@@ -238,13 +240,29 @@ func newMultiStreamWriterFromTemplate(destination *Destination, streamName strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to create streamName parser: %w", err)
 	}
-	return &multiStreamWriter{destination: destination, streamNameParser: parser}, nil
+
+	var streamProvisioner *streamProvisioner
+	if destination.config.AutoCreateStreams {
+		streamProvisioner = newStreamProvisioner()
+	}
+
+	return &multiStreamWriter{
+		destination:       destination,
+		streamProvisioner: streamProvisioner,
+		streamNameParser:  parser,
+	}, nil
 }
 
 func newMultiStreamWriterFromOpencdcCollection(destination *Destination) *multiStreamWriter {
+	var streamProvisioner *streamProvisioner
+	if destination.config.AutoCreateStreams {
+		streamProvisioner = newStreamProvisioner()
+	}
+
 	return &multiStreamWriter{
-		destination:      destination,
-		streamNameParser: &fromColFieldParser{},
+		destination:       destination,
+		streamProvisioner: streamProvisioner,
+		streamNameParser:  &fromColFieldParser{},
 	}
 }
 
@@ -252,6 +270,12 @@ func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (in
 	batches, err := parseBatches(records, m.streamNameParser)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse batches: %w", err)
+	}
+
+	if m.streamProvisioner != nil {
+		if err := m.streamProvisioner.ensureStreamsExist(ctx, m.destination, batches); err != nil {
+			return 0, fmt.Errorf("failed to ensure streams exist: %w", err)
+		}
 	}
 
 	var written int
@@ -283,4 +307,70 @@ func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (in
 
 func isGoTemplate(template string) bool {
 	return strings.HasPrefix(template, "{{") && strings.HasSuffix(template, "}}")
+}
+
+func (d *Destination) streamExists(ctx context.Context, name string) (bool, error) {
+	describeStreamInput := kinesis.DescribeStreamSummaryInput{
+		StreamName: &name,
+	}
+	_, err := d.client.DescribeStreamSummary(ctx, &describeStreamInput)
+	if err != nil {
+		var notFoundErr *types.ResourceNotFoundException
+		if errors.As(err, &notFoundErr) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("failed to describe stream %s: %w", name, err)
+	}
+
+	return true, nil
+}
+
+func (d *Destination) createStream(ctx context.Context, streamName string) error {
+	_, err := d.client.CreateStream(ctx, &kinesis.CreateStreamInput{
+		StreamName: &streamName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create stream %s: %w", streamName, err)
+	}
+	sdk.Logger(ctx).Info().Msg("created stream")
+
+	return nil
+}
+
+func (d *Destination) waitForStreamToBeReady(ctx context.Context, streamName string) error {
+	exists, err := d.streamExists(ctx, streamName)
+	if err != nil {
+		return fmt.Errorf("failed to check if stream exists: %w", err)
+	} else if !exists {
+		return fmt.Errorf("stream %s does not exist", streamName)
+	}
+
+	err = backoff.RetryNotify(func() error {
+		params := &kinesis.DescribeStreamSummaryInput{StreamName: &streamName}
+		streamData, err := d.client.DescribeStreamSummary(ctx, params)
+		if err != nil {
+			return fmt.Errorf("failed to describe stream: %w", err)
+		}
+
+		status := streamData.StreamDescriptionSummary.StreamStatus
+		switch status {
+		case types.StreamStatusCreating, types.StreamStatusUpdating, types.StreamStatusDeleting:
+		case types.StreamStatusActive:
+			sdk.Logger(ctx).Info().Msg("destination ready to be written to")
+			return nil
+		}
+
+		return fmt.Errorf("non ready status %s", status)
+	}, backoff.NewExponentialBackOff(), func(err error, dur time.Duration) {
+		sdk.Logger(ctx).Info().
+			Str("streamName", streamName).
+			Err(err).
+			Msgf("waiting for stream to be ready, retrying in %s", dur.String())
+	})
+	if err != nil {
+		return fmt.Errorf("failed to wait for stream %s to be ready: %w", streamName, err)
+	}
+
+	return nil
 }
