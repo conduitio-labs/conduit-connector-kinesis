@@ -274,7 +274,8 @@ func assertWrittenRecordsOnStream(
 func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 	getTestConfig := func(streamName string) map[string]string {
 		cfg := testutils.GetTestConfig(streamName)
-		cfg["createIfNotExists"] = "true"
+
+		cfg["auto.create.streams"] = "true"
 		return cfg
 	}
 
@@ -360,7 +361,7 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 		streamName := testutils.RandomStreamName("create_stream")
 
 		config := testutils.GetTestConfig(streamName)
-		config["createIfNotExists"] = "false"
+		config["auto.create.streams"] = "false"
 		err := con.Configure(ctx, config)
 		is.NoErr(err)
 
@@ -384,7 +385,7 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 		con := newDestination()
 
 		config := testutils.GetTestConfig("")
-		config["createIfNotExists"] = "false"
+		config["auto.create.streams"] = "false"
 		err := con.Configure(ctx, config)
 		is.NoErr(err)
 
