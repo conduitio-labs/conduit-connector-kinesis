@@ -44,6 +44,9 @@ func TestAcceptance(t *testing.T) {
 			DestinationConfig: cfg,
 			GenerateDataType:  sdk.GenerateRawData,
 			BeforeTest: func(t *testing.T) {
+				// kinesis client creation must be created and cleaned up inside
+				// BeforeTest so that goleak doesn't alert of a false positive http
+				// connection leaking.
 				setRandomStreamNameToCfg(t, cfg)
 			},
 			AfterTest: func(t *testing.T) {

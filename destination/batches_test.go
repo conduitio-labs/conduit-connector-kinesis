@@ -18,6 +18,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
 )
@@ -27,7 +28,7 @@ func TestParseBatches(t *testing.T) {
 		is := is.New(t)
 		parser := &fromColFieldParser{}
 
-		batches, err := parseBatches([]sdk.Record{}, parser)
+		batches, err := parseBatches([]opencdc.Record{}, parser)
 		is.NoErr(err)
 
 		is.Equal(0, len(batches))
@@ -37,7 +38,7 @@ func TestParseBatches(t *testing.T) {
 		is := is.New(t)
 		parser := &fromColFieldParser{}
 
-		var records []sdk.Record
+		var records []opencdc.Record
 		recs1 := testRecordsStreamOnColField(t, "test-stream-name-1")
 		records = append(records, recs1...)
 
@@ -68,7 +69,7 @@ func TestParseBatches(t *testing.T) {
 		parser, err := newFromTemplateParser(`{{ index .Metadata "streamName" }}`)
 		is.NoErr(err)
 
-		var records []sdk.Record
+		var records []opencdc.Record
 		recs1 := testRecordsStreamOnMetadata(t, "test-stream-name-1")
 		records = append(records, recs1...)
 
@@ -94,12 +95,12 @@ func TestParseBatches(t *testing.T) {
 	})
 }
 
-func testRecordsStreamOnColField(t *testing.T, streamName string) []sdk.Record {
+func testRecordsStreamOnColField(t *testing.T, streamName string) []opencdc.Record {
 	var testDriver sdk.ConfigurableAcceptanceTestDriver
 
-	var records []sdk.Record
+	var records []opencdc.Record
 	for range rand.Intn(3) + 1 {
-		rec := testDriver.GenerateRecord(t, sdk.OperationCreate)
+		rec := testDriver.GenerateRecord(t, opencdc.OperationCreate)
 		rec.Metadata.SetCollection(streamName)
 
 		records = append(records, rec)
@@ -108,13 +109,13 @@ func testRecordsStreamOnColField(t *testing.T, streamName string) []sdk.Record {
 	return records
 }
 
-func testRecordsStreamOnMetadata(t *testing.T, streamName string) []sdk.Record {
+func testRecordsStreamOnMetadata(t *testing.T, streamName string) []opencdc.Record {
 	var testDriver sdk.ConfigurableAcceptanceTestDriver
 
-	var records []sdk.Record
+	var records []opencdc.Record
 
 	for range rand.Intn(3) + 1 {
-		rec := testDriver.GenerateRecord(t, sdk.OperationCreate)
+		rec := testDriver.GenerateRecord(t, opencdc.OperationCreate)
 		records = append(records, rec)
 		rec.Metadata["streamName"] = streamName
 	}

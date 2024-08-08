@@ -25,6 +25,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
+	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
 	"github.com/rs/zerolog"
@@ -55,7 +56,7 @@ func TestWrite_MultiStream(t *testing.T) {
 
 		defer testutils.TeardownDestination(ctx, is, con)
 
-		var recs []sdk.Record
+		var recs []opencdc.Record
 		recs1 := testRecordsStreamOnColField(t, stream1)
 		recs = append(recs, recs1...)
 
@@ -96,7 +97,7 @@ func TestWrite_MultiStream(t *testing.T) {
 
 		defer testutils.TeardownDestination(ctx, is, con)
 
-		var recs []sdk.Record
+		var recs []opencdc.Record
 		recs1 := testRecordsStreamOnMetadata(t, stream1)
 		recs = append(recs, recs1...)
 
@@ -154,7 +155,7 @@ func TestWrite_PutRecords(t *testing.T) {
 	cases := []struct {
 		testName      string
 		expectedError error
-		records       []sdk.Record
+		records       []opencdc.Record
 	}{
 		{
 			"happy path",
@@ -209,7 +210,7 @@ func TestWrite_PutRecord(t *testing.T) {
 		testName                 string
 		expectedError            error
 		expectedNumberOfRequests int
-		records                  []sdk.Record
+		records                  []opencdc.Record
 	}{
 		{
 			"happy path - <500 records",
@@ -238,8 +239,8 @@ func TestWrite_PutRecord(t *testing.T) {
 	}
 }
 
-func makeRecords(count int, greaterThan5MB bool) []sdk.Record {
-	var records []sdk.Record
+func makeRecords(count int, greaterThan5MB bool) []opencdc.Record {
+	var records []opencdc.Record
 	oneMB := (1024 * 1024) - 300000
 
 	for i := 0; i < count; i++ {
@@ -254,8 +255,8 @@ func makeRecords(count int, greaterThan5MB bool) []sdk.Record {
 		rec := sdk.Util.Source.NewRecordCreate(
 			nil,
 			nil,
-			sdk.RawData(key),
-			sdk.RawData(data),
+			opencdc.RawData(key),
+			opencdc.RawData(data),
 		)
 
 		records = append(records, rec)
@@ -265,7 +266,7 @@ func makeRecords(count int, greaterThan5MB bool) []sdk.Record {
 
 func assertWrittenRecordsOnStream(
 	ctx context.Context, is *is.I,
-	streamName string, records []sdk.Record,
+	streamName string, records []opencdc.Record,
 ) {
 	recs := testutils.GetRecords(ctx, is, streamName)
 	is.Equal(len(records), len(recs))
@@ -335,7 +336,7 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 
 		defer testutils.TeardownDestination(ctx, is, con)
 
-		var recs []sdk.Record
+		var recs []opencdc.Record
 		recs1 := testRecordsStreamOnColField(t, streamName1)
 		recs = append(recs, recs1...)
 		recs2 := testRecordsStreamOnColField(t, streamName2)
