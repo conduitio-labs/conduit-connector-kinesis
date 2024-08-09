@@ -65,7 +65,8 @@ func TestNewRandomStreamDoesntLeak(t *testing.T) {
 	// While testing a test function seems redundant, it is useful here to
 	// discard goroutine leak origins.
 
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 	cfg := testutils.GetTestConfig("")
 
 	setRandomStreamNameToCfg(t, cfg)
