@@ -27,6 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
+	"github.com/conduitio-labs/conduit-connector-kinesis/source"
 	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
@@ -44,14 +45,13 @@ func TestAcceptance(t *testing.T) {
 			DestinationConfig: cfg,
 			GenerateDataType:  sdk.GenerateRawData,
 			BeforeTest: func(t *testing.T) {
+				// kinesis client creation must be created and cleaned up inside
+				// BeforeTest so that goleak doesn't alert of a false positive http
+				// connection leaking.
 				setRandomStreamNameToCfg(t, cfg)
 			},
 			AfterTest: func(t *testing.T) {
 				cleanupAcceptanceTestStream(t, cfg)
-			},
-			Skip: []string{
-				"TestDestination_Configure_RequiredParams",
-				"TestSource_Configure_RequiredParams",
 			},
 			WriteTimeout: 5000 * time.Millisecond,
 			ReadTimeout:  5000 * time.Millisecond,
@@ -65,7 +65,8 @@ func TestNewRandomStreamDoesntLeak(t *testing.T) {
 	// While testing a test function seems redundant, it is useful here to
 	// discard goroutine leak origins.
 
-	defer goleak.VerifyNone(t)
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
 	cfg := testutils.GetTestConfig("")
 
 	setRandomStreamNameToCfg(t, cfg)
@@ -117,7 +118,7 @@ func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 
 		isStreamReadyForTest := describe.StreamDescription.StreamStatus == types.StreamStatusActive
 		if isStreamReadyForTest {
-			cfg["streamName"] = *describe.StreamDescription.StreamName
+			cfg[source.ConfigStreamName] = *describe.StreamDescription.StreamName
 			return nil
 		}
 

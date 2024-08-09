@@ -26,6 +26,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
+	"github.com/conduitio/conduit-commons/config"
+	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/oklog/ulid/v2"
 	cmap "github.com/orcaman/concurrent-map/v2"
@@ -47,7 +49,7 @@ type Source struct {
 
 	tomb        *tomb.Tomb
 	streamMap   cmap.ConcurrentMap[string, *kinesis.SubscribeToShardEventStream]
-	buffer      chan sdk.Record
+	buffer      chan opencdc.Record
 	consumerARN *string
 }
 
@@ -73,17 +75,17 @@ func New() sdk.Source {
 		// tomb to nil, start it up on Open(), and check whether tomb is nil or not in Teardown()
 		// to prevent the deadlock.
 		tomb:      nil,
-		buffer:    make(chan sdk.Record, 100),
+		buffer:    make(chan opencdc.Record, 100),
 		streamMap: cmap.New[*kinesis.SubscribeToShardEventStream](),
 	}, sdk.DefaultSourceMiddleware()...)
 }
 
-func (s *Source) Parameters() map[string]sdk.Parameter {
+func (s *Source) Parameters() config.Parameters {
 	return s.config.Parameters()
 }
 
-func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
-	err := sdk.Util.ParseConfig(cfg, &s.config)
+func (s *Source) Configure(ctx context.Context, cfg config.Config) error {
+	err := sdk.Util.ParseConfig(ctx, cfg, &s.config, s.config.Parameters())
 	if err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
@@ -99,7 +101,7 @@ func (s *Source) Configure(ctx context.Context, cfg map[string]string) error {
 	return nil
 }
 
-func (s *Source) Open(ctx context.Context, pos sdk.Position) error {
+func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	// DescribeStream to know that the stream ARN is valid and usable, ie test connection
 	streamOutput, err := s.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 		StreamName: &s.config.StreamName,
@@ -168,7 +170,7 @@ func (s *Source) waitForConsumer(ctx context.Context, consumer *types.Consumer) 
 	return fmt.Errorf("consumer wait timed out")
 }
 
-func (s *Source) Read(ctx context.Context) (rec sdk.Record, err error) {
+func (s *Source) Read(ctx context.Context) (rec opencdc.Record, err error) {
 	select {
 	case <-ctx.Done():
 		return rec, fmt.Errorf("source read timed out: %w", ctx.Err())
@@ -177,7 +179,7 @@ func (s *Source) Read(ctx context.Context) (rec sdk.Record, err error) {
 	}
 }
 
-func (s *Source) Ack(_ context.Context, _ sdk.Position) error {
+func (s *Source) Ack(_ context.Context, _ opencdc.Position) error {
 	// kinesis doesn't have any acking system, so we do nothing here.
 	return nil
 }
@@ -220,8 +222,8 @@ func (s *Source) Teardown(ctx context.Context) error {
 	return nil
 }
 
-func toRecords(kinRecords []types.Record, streamName, shardID string) []sdk.Record {
-	sdkRecs := make([]sdk.Record, 0, len(kinRecords))
+func toRecords(kinRecords []types.Record, streamName, shardID string) []opencdc.Record {
+	sdkRecs := make([]opencdc.Record, 0, len(kinRecords))
 
 	for _, rec := range kinRecords {
 		kinPos := kinesisPosition{
@@ -236,13 +238,13 @@ func toRecords(kinRecords []types.Record, streamName, shardID string) []sdk.Reco
 		}
 
 		sdkRec := sdk.Util.Source.NewRecordCreate(
-			sdk.Position(kinPosBytes),
-			sdk.Metadata{
+			opencdc.Position(kinPosBytes),
+			opencdc.Metadata{
 				"shardId":        "kinesis-" + shardID,
 				"sequenceNumber": "kinesis-" + *rec.SequenceNumber,
 			},
-			sdk.RawData(kinPosBytes),
-			sdk.RawData(rec.Data),
+			opencdc.RawData(kinPosBytes),
+			opencdc.RawData(rec.Data),
 		)
 		sdkRec.Metadata.SetCollection(streamName)
 
@@ -307,7 +309,7 @@ func (s *Source) listenEvents(ctx context.Context) {
 	}
 }
 
-func (s *Source) subscribeShards(ctx context.Context, position sdk.Position) error {
+func (s *Source) subscribeShards(ctx context.Context, position opencdc.Position) error {
 	var startingPosition types.StartingPosition
 	switch {
 	case position != nil:
@@ -372,7 +374,7 @@ func (s *Source) resubscribeShard(ctx context.Context, shardID string) error {
 	return nil
 }
 
-func parsePosition(pos sdk.Position) (kinesisPosition, error) {
+func parsePosition(pos opencdc.Position) (kinesisPosition, error) {
 	var kinPos kinesisPosition
 	err := json.Unmarshal(pos, &kinPos)
 	if err != nil {

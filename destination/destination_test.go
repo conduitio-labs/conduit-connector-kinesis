@@ -18,6 +18,8 @@ import (
 	"context"
 	"testing"
 
+	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
+	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
 )
@@ -28,26 +30,29 @@ func TestCreatePutRequestInput(t *testing.T) {
 
 	testDriver := sdk.ConfigurableAcceptanceTestDriver{}
 
-	record1 := testDriver.GenerateRecord(t, sdk.OperationCreate)
-	record1.Key = sdk.RawData("key1")
-	record2 := testDriver.GenerateRecord(t, sdk.OperationCreate)
-	record2.Key = sdk.RawData("key2")
-	record3 := testDriver.GenerateRecord(t, sdk.OperationCreate)
-	record3.Key = sdk.RawData("key3")
-	record4 := testDriver.GenerateRecord(t, sdk.OperationCreate)
+	record1 := testDriver.GenerateRecord(t, opencdc.OperationCreate)
+	record1.Key = opencdc.RawData("key1")
+	record2 := testDriver.GenerateRecord(t, opencdc.OperationCreate)
+	record2.Key = opencdc.RawData("key2")
+	record3 := testDriver.GenerateRecord(t, opencdc.OperationCreate)
+	record3.Key = opencdc.RawData("key3")
+	record4 := testDriver.GenerateRecord(t, opencdc.OperationCreate)
 
 	// make last record have a key greater than 256 characters to trigger the key length overflow path
 	var record4Key string
 	for i := 0; i < 257; i++ {
 		record4Key += "x"
 	}
-	record4.Key = sdk.RawData(record4Key)
+	record4.Key = opencdc.RawData(record4Key)
 
-	records := []sdk.Record{record1, record2, record3, record4}
+	records := []opencdc.Record{record1, record2, record3, record4}
 
 	{
 		dest := Destination{}
-		err := dest.Configure(ctx, map[string]string{"partitionKeyTemplate": "partitionKey"})
+		cfg := testutils.GetTestConfig("random-stream")
+		cfg[ConfigPartitionKeyTemplate] = "partitionKey"
+
+		err := dest.Configure(ctx, cfg)
 		is.NoErr(err)
 
 		request, err := dest.createPutRequestInput(ctx, records, "streamName")
@@ -81,14 +86,16 @@ func TestPartitionKey(t *testing.T) {
 		ctx := context.Background()
 		is := is.New(t)
 		d := Destination{}
-		err := d.Configure(ctx, map[string]string{
-			"partitionKeyTemplate": `{{ printf "%s" .Position }}`,
-		})
+
+		cfg := testutils.GetTestConfig("random-stream")
+		cfg[ConfigPartitionKeyTemplate] = `{{ printf "%s" .Position }}`
+
+		err := d.Configure(ctx, cfg)
 		is.NoErr(err)
 
-		expectedPartitionKey := sdk.Position("test-partition-key")
+		expectedPartitionKey := opencdc.Position("test-partition-key")
 
-		partitionKey, err := d.partitionKey(ctx, sdk.Record{
+		partitionKey, err := d.partitionKey(ctx, opencdc.Record{
 			Position: expectedPartitionKey,
 		})
 		is.NoErr(err)
@@ -99,9 +106,9 @@ func TestPartitionKey(t *testing.T) {
 		ctx := context.Background()
 		is := is.New(t)
 		d := Destination{}
-		expectedPartitionKey := sdk.RawData("test-position")
+		expectedPartitionKey := opencdc.RawData("test-position")
 
-		partitionKey, err := d.partitionKey(ctx, sdk.Record{
+		partitionKey, err := d.partitionKey(ctx, opencdc.Record{
 			Key: expectedPartitionKey,
 		})
 		is.NoErr(err)

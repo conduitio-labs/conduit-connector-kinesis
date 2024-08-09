@@ -28,6 +28,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
+	"github.com/conduitio/conduit-commons/config"
+	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
 
@@ -62,12 +64,12 @@ func New() sdk.Destination {
 	return sdk.DestinationWithMiddleware(newDestination(), sdk.DefaultDestinationMiddleware()...)
 }
 
-func (d *Destination) Parameters() map[string]sdk.Parameter {
+func (d *Destination) Parameters() config.Parameters {
 	return d.config.Parameters()
 }
 
-func (d *Destination) Configure(ctx context.Context, cfg map[string]string) error {
-	err := sdk.Util.ParseConfig(cfg, &d.config)
+func (d *Destination) Configure(ctx context.Context, cfg config.Config) error {
+	err := sdk.Util.ParseConfig(ctx, cfg, &d.config, d.config.Parameters())
 	if err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
@@ -130,7 +132,7 @@ func (d *Destination) Open(ctx context.Context) error {
 	return nil
 }
 
-func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string, error) {
+func (d *Destination) partitionKey(ctx context.Context, rec opencdc.Record) (string, error) {
 	if d.config.PartitionKeyTemplate == "" {
 		partitionKey := string(rec.Key.Bytes())
 		// partition keys must be less than 256 characters
@@ -154,7 +156,7 @@ func (d *Destination) partitionKey(ctx context.Context, rec sdk.Record) (string,
 
 func (d *Destination) createPutRequestInput(
 	ctx context.Context,
-	records []sdk.Record,
+	records []opencdc.Record,
 	streamName string,
 ) (*kinesis.PutRecordsInput, error) {
 	entries := make([]types.PutRecordsRequestEntry, 0, len(records))
@@ -178,7 +180,7 @@ func (d *Destination) createPutRequestInput(
 	}, nil
 }
 
-func (d *Destination) Write(ctx context.Context, records []sdk.Record) (written int, err error) {
+func (d *Destination) Write(ctx context.Context, records []opencdc.Record) (written int, err error) {
 	return d.recordWriter.Write(ctx, records) //nolint:wrapcheck // record writer already wraps errors properly
 }
 
@@ -189,7 +191,7 @@ func (d *Destination) Teardown(ctx context.Context) error {
 }
 
 type recordWriter interface {
-	Write(ctx context.Context, records []sdk.Record) (int, error)
+	Write(ctx context.Context, records []opencdc.Record) (int, error)
 }
 
 // singleStreamWriter writes records to a single stream. It will ignore the
@@ -198,7 +200,7 @@ type singleStreamWriter struct {
 	destination *Destination
 }
 
-func (s *singleStreamWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
+func (s *singleStreamWriter) Write(ctx context.Context, records []opencdc.Record) (int, error) {
 	req, err := s.destination.createPutRequestInput(ctx, records, s.destination.config.StreamName)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create put records request: %w", err)
@@ -266,7 +268,7 @@ func newMultiStreamWriterFromOpencdcCollection(destination *Destination) *multiS
 	}
 }
 
-func (m *multiStreamWriter) Write(ctx context.Context, records []sdk.Record) (int, error) {
+func (m *multiStreamWriter) Write(ctx context.Context, records []opencdc.Record) (int, error) {
 	batches, err := parseBatches(records, m.streamNameParser)
 	if err != nil {
 		return 0, fmt.Errorf("failed to parse batches: %w", err)

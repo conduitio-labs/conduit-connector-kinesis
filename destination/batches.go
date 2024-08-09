@@ -20,19 +20,19 @@ import (
 	"strings"
 	"text/template"
 
-	sdk "github.com/conduitio/conduit-connector-sdk"
+	"github.com/conduitio/conduit-commons/opencdc"
 	cmap "github.com/orcaman/concurrent-map/v2"
 )
 
 type streamNameParser interface {
-	ParseStreamName(sdk.Record) (string, error)
+	ParseStreamName(opencdc.Record) (string, error)
 }
 
 type fromColFieldParser struct{}
 
 // ParseStreamName parses the streamName from the opencdc.collection record
 // metadata field.
-func (p *fromColFieldParser) ParseStreamName(r sdk.Record) (string, error) {
+func (p *fromColFieldParser) ParseStreamName(r opencdc.Record) (string, error) {
 	streamName, err := r.Metadata.GetCollection()
 	if err != nil {
 		return "", fmt.Errorf("streamName not found in record's collection metadata %s", string(r.Key.Bytes()))
@@ -57,7 +57,7 @@ func newFromTemplateParser(templateContents string) (*fromTemplateParser, error)
 }
 
 // ParseStreamName parses the streamName from the given go template.
-func (p *fromTemplateParser) ParseStreamName(r sdk.Record) (string, error) {
+func (p *fromTemplateParser) ParseStreamName(r opencdc.Record) (string, error) {
 	var sb strings.Builder
 	if err := p.template.Execute(&sb, r); err != nil {
 		return "", fmt.Errorf("failed to parse streamName from template: %w", err)
@@ -75,7 +75,7 @@ func (p *fromTemplateParser) ParseStreamName(r sdk.Record) (string, error) {
 
 type recordBatch struct {
 	streamName string
-	records    []sdk.Record
+	records    []opencdc.Record
 }
 
 // parseBatches parses a list of records into batches based on the streamName
@@ -93,7 +93,7 @@ type recordBatch struct {
 //   - batch 3: [record 4, record 5]
 //
 // They are parsed this way to preserve write order.
-func parseBatches(records []sdk.Record, parser streamNameParser) ([]recordBatch, error) {
+func parseBatches(records []opencdc.Record, parser streamNameParser) ([]recordBatch, error) {
 	var batches []recordBatch
 	for _, r := range records {
 		streamName, err := parser.ParseStreamName(r)
@@ -104,7 +104,7 @@ func parseBatches(records []sdk.Record, parser streamNameParser) ([]recordBatch,
 		if len(batches) == 0 {
 			batches = append(batches, recordBatch{
 				streamName: streamName,
-				records:    []sdk.Record{r},
+				records:    []opencdc.Record{r},
 			})
 			continue
 		}
@@ -114,7 +114,7 @@ func parseBatches(records []sdk.Record, parser streamNameParser) ([]recordBatch,
 		} else {
 			batches = append(batches, recordBatch{
 				streamName: streamName,
-				records:    []sdk.Record{r},
+				records:    []opencdc.Record{r},
 			})
 		}
 	}
