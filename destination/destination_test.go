@@ -18,6 +18,7 @@ import (
 	"context"
 	"testing"
 
+	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
@@ -48,7 +49,10 @@ func TestCreatePutRequestInput(t *testing.T) {
 
 	{
 		dest := Destination{}
-		err := dest.Configure(ctx, map[string]string{"partitionKeyTemplate": "partitionKey"})
+		cfg := testutils.GetTestConfig("random-stream")
+		cfg[ConfigPartitionKeyTemplate] = "partitionKey"
+
+		err := dest.Configure(ctx, cfg)
 		is.NoErr(err)
 
 		request, err := dest.createPutRequestInput(ctx, records, "streamName")
@@ -82,9 +86,11 @@ func TestPartitionKey(t *testing.T) {
 		ctx := context.Background()
 		is := is.New(t)
 		d := Destination{}
-		err := d.Configure(ctx, map[string]string{
-			"partitionKeyTemplate": `{{ printf "%s" .Position }}`,
-		})
+
+		cfg := testutils.GetTestConfig("random-stream")
+		cfg[ConfigPartitionKeyTemplate] = `{{ printf "%s" .Position }}`
+
+		err := d.Configure(ctx, cfg)
 		is.NoErr(err)
 
 		expectedPartitionKey := opencdc.Position("test-partition-key")
