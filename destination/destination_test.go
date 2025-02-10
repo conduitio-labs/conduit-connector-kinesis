@@ -52,6 +52,8 @@ func TestCreatePutRequestInput(t *testing.T) {
 		cfg := configureDest(dest, "random-stream")
 		cfg.PartitionKeyTemplate = "partitionKey"
 
+		is.NoErr(dest.init(ctx))
+
 		request, err := dest.createPutRequestInput(ctx, records, "streamName")
 		is.NoErr(err)
 
@@ -63,6 +65,8 @@ func TestCreatePutRequestInput(t *testing.T) {
 
 	{
 		dest := Destination{config: Config{}}
+
+		is.NoErr(dest.init(ctx))
 
 		request, err := dest.createPutRequestInput(ctx, records, "streamName")
 		is.NoErr(err)
@@ -87,6 +91,8 @@ func TestPartitionKey(t *testing.T) {
 		cfg := configureDest(d, "random-stream")
 		cfg.PartitionKeyTemplate = `{{ printf "%s" .Position }}`
 
+		is.NoErr(d.init(ctx))
+
 		expectedPartitionKey := opencdc.Position("test-partition-key")
 
 		partitionKey, err := d.partitionKey(ctx, opencdc.Record{
@@ -100,6 +106,8 @@ func TestPartitionKey(t *testing.T) {
 		ctx := context.Background()
 		is := is.New(t)
 		d := Destination{}
+		is.NoErr(d.init(ctx))
+
 		expectedPartitionKey := opencdc.RawData("test-position")
 
 		partitionKey, err := d.partitionKey(ctx, opencdc.Record{

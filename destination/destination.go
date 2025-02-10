@@ -67,7 +67,7 @@ func New() sdk.Destination {
 	return sdk.DestinationWithMiddleware(newDestination())
 }
 
-func (d *Destination) Open(ctx context.Context) (err error) {
+func (d *Destination) init(ctx context.Context) (err error) {
 	if d.config.PartitionKeyTemplate != "" {
 		d.partitionKeyTempl, err = template.New("partitionKey").Parse(d.config.PartitionKeyTemplate)
 		if err != nil {
@@ -92,6 +92,14 @@ func (d *Destination) Open(ctx context.Context) (err error) {
 	d.client, err = common.NewClient(ctx, d.httpClient, d.config.Config)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
+	}
+
+	return nil
+}
+
+func (d *Destination) Open(ctx context.Context) (err error) {
+	if err := d.init(ctx); err != nil {
+		return err
 	}
 
 	if isGoTemplate(d.config.StreamName) || d.config.StreamName == "" {

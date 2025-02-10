@@ -267,7 +267,8 @@ func TestWrite_CreateStreamIfNotExists_SingleCollection(t *testing.T) {
 	streamName := testutils.RandomStreamName("create_stream")
 	defer testutils.DeleteStream(ctx, is, testClient, streamName)
 
-	configureDest(con, streamName)
+	cfg := configureDest(con, streamName)
+	cfg.AutoCreateStreams = true
 
 	is.NoErr(con.Open(ctx))
 
@@ -302,7 +303,8 @@ func TestWrite_CreateStreamIfNotExists_MultiCollection(t *testing.T) {
 	defer testutils.DeleteStream(ctx, is, testClient, streamName3)
 
 	// streamName is fetched from `opencdc.collection` field
-	configureDest(con, "")
+	cfg := configureDest(con, "")
+	cfg.AutoCreateStreams = true
 
 	is.NoErr(con.Open(ctx))
 
