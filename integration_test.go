@@ -41,14 +41,16 @@ func TestConnectorCleanup(t *testing.T) {
 
 	src := source.New()
 
-	err := sdk.Util.ParseConfig(ctx, cfg, src.Config(), Connector.NewSpecification().SourceParams)
+	spec := Connector.NewSpecification()
+	err := sdk.Util.ParseConfig(ctx, cfg, src.Config(), spec.SourceParams)
 	is.NoErr(err)
 
 	is.NoErr(src.Open(ctx, nil))
 	is.NoErr(src.Teardown(ctx))
 
 	dest := destination.New()
-	err = sdk.Util.ParseConfig(ctx, cfg, dest.Config(), Connector.NewSpecification().DestinationParams)
+
+	err = sdk.Util.ParseConfig(ctx, cfg, dest.Config(), spec.DestinationParams)
 	is.NoErr(err)
 
 	is.NoErr(dest.Open(ctx))
