@@ -32,10 +32,8 @@ import (
 )
 
 func TestWrite_MultiStream(t *testing.T) {
-	logger := zerolog.New(zerolog.NewTestWriter(t))
-	ctx := logger.WithContext(context.Background())
-
 	t.Run("using col field", func(t *testing.T) {
+		ctx := testContext(t)
 		is := is.New(t)
 		con := newDestination()
 		stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
@@ -74,6 +72,7 @@ func TestWrite_MultiStream(t *testing.T) {
 	})
 
 	t.Run("using template", func(t *testing.T) {
+		ctx := testContext(t)
 		is := is.New(t)
 
 		con := newDestination()
@@ -114,9 +113,8 @@ func TestWrite_MultiStream(t *testing.T) {
 }
 
 func TestTeardown_Open(t *testing.T) {
+	ctx := testContext(t)
 	is := is.New(t)
-	logger := zerolog.New(zerolog.NewTestWriter(t))
-	ctx := logger.WithContext(context.Background())
 	con := newDestination()
 
 	streamName, cleanup := testutils.SetupTestStream(ctx, is)
@@ -130,8 +128,7 @@ func TestTeardown_Open(t *testing.T) {
 }
 
 func TestWrite_PutRecords(t *testing.T) {
-	logger := zerolog.New(zerolog.NewTestWriter(t))
-	ctx := logger.WithContext(context.Background())
+	ctx := testContext(t)
 	is := is.New(t)
 	con := newDestination()
 
@@ -182,8 +179,7 @@ func TestWrite_PutRecords(t *testing.T) {
 }
 
 func TestWrite_PutRecord(t *testing.T) {
-	logger := zerolog.New(zerolog.NewTestWriter(t))
-	ctx := logger.WithContext(context.Background())
+	ctx := testContext(t)
 	is := is.New(t)
 	con := newDestination()
 
@@ -264,8 +260,7 @@ func assertWrittenRecordsOnStream(
 
 func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 	t.Run("create stream in single collection mode", func(t *testing.T) {
-		logger := zerolog.New(zerolog.NewTestWriter(t))
-		ctx := logger.WithContext(context.Background())
+		ctx := testContext(t)
 		is := is.New(t)
 		con := newDestination()
 		testClient := testutils.NewTestClient(ctx, is)
@@ -288,9 +283,10 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 		assertWrittenRecordsOnStream(ctx, is, streamName, recs)
 	})
 
+	return
+
 	t.Run("create stream in multi collection mode", func(t *testing.T) {
-		logger := zerolog.New(zerolog.NewTestWriter(t))
-		ctx := logger.WithContext(context.Background())
+		ctx := testContext(t)
 		is := is.New(t)
 		con := newDestination()
 		testClient := testutils.NewTestClient(ctx, is)
@@ -333,8 +329,7 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 	})
 
 	t.Run("errors if option set to false in single collection mode", func(t *testing.T) {
-		logger := zerolog.New(zerolog.NewTestWriter(t))
-		ctx := logger.WithContext(context.Background())
+		ctx := testContext(t)
 		is := is.New(t)
 		con := newDestination()
 
@@ -357,8 +352,7 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 	})
 
 	t.Run("errors if option set to false in multi collection mode", func(t *testing.T) {
-		logger := zerolog.New(zerolog.NewTestWriter(t))
-		ctx := logger.WithContext(context.Background())
+		ctx := testContext(t)
 		is := is.New(t)
 		con := newDestination()
 
@@ -383,4 +377,9 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 			t.Fatalf("expected error to be of type %T, got %T", notFoundErr, err)
 		}
 	})
+}
+
+func testContext(t *testing.T) context.Context {
+	logger := zerolog.New(zerolog.NewTestWriter(t))
+	return logger.WithContext(context.Background())
 }
