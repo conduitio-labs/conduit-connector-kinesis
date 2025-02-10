@@ -27,7 +27,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
-	"github.com/conduitio-labs/conduit-connector-kinesis/source"
 	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
@@ -118,7 +117,7 @@ func setRandomStreamNameToCfg(t *testing.T, cfg map[string]string) {
 
 		isStreamReadyForTest := describe.StreamDescription.StreamStatus == types.StreamStatusActive
 		if isStreamReadyForTest {
-			cfg[source.ConfigStreamName] = *describe.StreamDescription.StreamName
+			cfg["streamName"] = *describe.StreamDescription.StreamName
 			return nil
 		}
 

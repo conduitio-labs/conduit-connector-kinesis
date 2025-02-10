@@ -28,7 +28,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/cenkalti/backoff/v4"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
-	"github.com/conduitio/conduit-commons/config"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 )
@@ -55,26 +54,20 @@ type Destination struct {
 	httpClient *http.Client
 }
 
+func (d *Destination) Config() sdk.DestinationConfig {
+	return &d.config
+}
+
 func newDestination() *Destination {
 	httpClient := &http.Client{Transport: &http.Transport{}}
 	return &Destination{httpClient: httpClient}
 }
 
 func New() sdk.Destination {
-	return sdk.DestinationWithMiddleware(newDestination(), sdk.DefaultDestinationMiddleware()...)
+	return sdk.DestinationWithMiddleware(newDestination())
 }
 
-func (d *Destination) Parameters() config.Parameters {
-	return d.config.Parameters()
-}
-
-func (d *Destination) Configure(ctx context.Context, cfg config.Config) error {
-	err := sdk.Util.ParseConfig(ctx, cfg, &d.config, d.config.Parameters())
-	if err != nil {
-		return fmt.Errorf("invalid config: %w", err)
-	}
-	sdk.Logger(ctx).Info().Msg("parsed destination configuration")
-
+func (d *Destination) Open(ctx context.Context) (err error) {
 	if d.config.PartitionKeyTemplate != "" {
 		d.partitionKeyTempl, err = template.New("partitionKey").Parse(d.config.PartitionKeyTemplate)
 		if err != nil {
@@ -101,10 +94,6 @@ func (d *Destination) Configure(ctx context.Context, cfg config.Config) error {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 
-	return nil
-}
-
-func (d *Destination) Open(ctx context.Context) error {
 	if isGoTemplate(d.config.StreamName) || d.config.StreamName == "" {
 		// destination is in multicollection mode, so we don't need to wait for any
 		// stream to be ready to be used

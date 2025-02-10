@@ -48,11 +48,9 @@ func TestWrite_MultiStream(t *testing.T) {
 		defer cleanup3()
 
 		// streamName is fetched from `opencdc.collection` field
-		err := con.Configure(ctx, testutils.GetTestConfig(""))
-		is.NoErr(err)
+		configureDest(con, "")
 
-		err = con.Open(ctx)
-		is.NoErr(err)
+		is.NoErr(con.Open(ctx))
 
 		defer testutils.TeardownDestination(ctx, is, con)
 
@@ -89,11 +87,9 @@ func TestWrite_MultiStream(t *testing.T) {
 		defer cleanup3()
 
 		template := `{{ index .Metadata "streamName" }}`
-		err := con.Configure(ctx, testutils.GetTestConfig(template))
-		is.NoErr(err)
+		configureDest(con, template)
 
-		err = con.Open(ctx)
-		is.NoErr(err)
+		is.NoErr(con.Open(ctx))
 
 		defer testutils.TeardownDestination(ctx, is, con)
 
@@ -126,11 +122,9 @@ func TestTeardown_Open(t *testing.T) {
 	streamName, cleanup := testutils.SetupTestStream(ctx, is)
 	defer cleanup()
 
-	err := con.Configure(ctx, testutils.GetTestConfig(streamName))
-	is.NoErr(err)
+	configureDest(con, streamName)
 
-	err = con.Open(ctx)
-	is.NoErr(err)
+	is.NoErr(con.Open(ctx))
 
 	testutils.TeardownDestination(ctx, is, con)
 }
@@ -144,11 +138,9 @@ func TestWrite_PutRecords(t *testing.T) {
 	streamName, cleanup := testutils.SetupTestStream(ctx, is)
 	defer cleanup()
 
-	err := con.Configure(ctx, testutils.GetTestConfig(streamName))
-	is.NoErr(err)
+	configureDest(con, streamName)
 
-	err = con.Open(ctx)
-	is.NoErr(err)
+	is.NoErr(con.Open(ctx))
 
 	defer testutils.TeardownDestination(ctx, is, con)
 
@@ -198,11 +190,9 @@ func TestWrite_PutRecord(t *testing.T) {
 	streamName, cleanup := testutils.SetupTestStream(ctx, is)
 	defer cleanup()
 
-	err := con.Configure(ctx, testutils.GetTestConfig(streamName))
-	is.NoErr(err)
+	configureDest(con, streamName)
 
-	err = con.Open(ctx)
-	is.NoErr(err)
+	is.NoErr(con.Open(ctx))
 
 	defer testutils.TeardownDestination(ctx, is, con)
 
@@ -273,13 +263,6 @@ func assertWrittenRecordsOnStream(
 }
 
 func TestWrite_CreateStreamIfNotExists(t *testing.T) {
-	getTestConfig := func(streamName string) map[string]string {
-		cfg := testutils.GetTestConfig(streamName)
-
-		cfg["auto.create.streams"] = "true"
-		return cfg
-	}
-
 	t.Run("create stream in single collection mode", func(t *testing.T) {
 		logger := zerolog.New(zerolog.NewTestWriter(t))
 		ctx := logger.WithContext(context.Background())
@@ -290,11 +273,9 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 		streamName := testutils.RandomStreamName("create_stream")
 		defer testutils.DeleteStream(ctx, is, testClient, streamName)
 
-		err := con.Configure(ctx, getTestConfig(streamName))
-		is.NoErr(err)
+		configureDest(con, streamName)
 
-		err = con.Open(ctx)
-		is.NoErr(err)
+		is.NoErr(con.Open(ctx))
 
 		defer testutils.TeardownDestination(ctx, is, con)
 
@@ -328,11 +309,9 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 		defer testutils.DeleteStream(ctx, is, testClient, streamName3)
 
 		// streamName is fetched from `opencdc.collection` field
-		err := con.Configure(ctx, getTestConfig(""))
-		is.NoErr(err)
+		configureDest(con, "")
 
-		err = con.Open(ctx)
-		is.NoErr(err)
+		is.NoErr(con.Open(ctx))
 
 		defer testutils.TeardownDestination(ctx, is, con)
 
@@ -361,12 +340,10 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 
 		streamName := testutils.RandomStreamName("create_stream")
 
-		config := testutils.GetTestConfig(streamName)
-		config["auto.create.streams"] = "false"
-		err := con.Configure(ctx, config)
-		is.NoErr(err)
+		cfg := configureDest(con, streamName)
+		cfg.AutoCreateStreams = false
 
-		err = con.Open(ctx) // error is expected, since stream doesn't exist
+		err := con.Open(ctx) // error is expected, since stream doesn't exist
 		is.True(err != nil)
 
 		// changing the public api just to check for a specific error message
@@ -385,13 +362,10 @@ func TestWrite_CreateStreamIfNotExists(t *testing.T) {
 		is := is.New(t)
 		con := newDestination()
 
-		config := testutils.GetTestConfig("")
-		config["auto.create.streams"] = "false"
-		err := con.Configure(ctx, config)
-		is.NoErr(err)
+		cfg := configureDest(con, "")
+		cfg.AutoCreateStreams = false
 
-		err = con.Open(ctx)
-		is.NoErr(err)
+		is.NoErr(con.Open(ctx))
 		defer testutils.TeardownDestination(ctx, is, con)
 
 		recs := testRecordsStreamOnColField(t, "non-existent-stream")

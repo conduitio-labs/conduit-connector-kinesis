@@ -14,10 +14,14 @@
 
 package destination
 
-import "github.com/conduitio-labs/conduit-connector-kinesis/common"
+import (
+	"github.com/conduitio-labs/conduit-connector-kinesis/common"
+	sdk "github.com/conduitio/conduit-connector-sdk"
+)
 
-//go:generate paramgen -output=config_paramgen.go Config
 type Config struct {
+	sdk.DefaultDestinationMiddleware
+
 	// Config includes parameters that are the same in the source and destination.
 	common.Config
 

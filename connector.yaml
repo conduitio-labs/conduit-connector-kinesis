@@ -1,0 +1,7 @@
+version: "1.0"
+specification:
+    name: kinesis
+    summary: A Conduit Connector for AWS Kinesis Data Streaming
+    description: A source and destination connector for AWS Kinesis Data Streaming
+    version: ""
+    author: Meroxa, Inc.

@@ -21,6 +21,7 @@ import (
 	"github.com/conduitio-labs/conduit-connector-kinesis/destination"
 	"github.com/conduitio-labs/conduit-connector-kinesis/source"
 	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
+	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
 	"go.uber.org/goleak"
 )
@@ -39,22 +40,17 @@ func TestConnectorCleanup(t *testing.T) {
 	setRandomStreamNameToCfg(t, cfg)
 
 	src := source.New()
-	err := src.Configure(ctx, cfg)
+
+	err := sdk.Util.ParseConfig(ctx, cfg, src.Config(), Connector.NewSpecification().SourceParams)
 	is.NoErr(err)
 
-	err = src.Open(ctx, nil)
-	is.NoErr(err)
-
-	err = src.Teardown(ctx)
-	is.NoErr(err)
+	is.NoErr(src.Open(ctx, nil))
+	is.NoErr(src.Teardown(ctx))
 
 	dest := destination.New()
-	err = dest.Configure(ctx, cfg)
+	err = sdk.Util.ParseConfig(ctx, cfg, dest.Config(), Connector.NewSpecification().DestinationParams)
 	is.NoErr(err)
 
-	err = dest.Open(ctx)
-	is.NoErr(err)
-
-	err = dest.Teardown(ctx)
-	is.NoErr(err)
+	is.NoErr(dest.Open(ctx))
+	is.NoErr(dest.Teardown(ctx))
 }

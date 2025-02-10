@@ -26,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 	"github.com/conduitio-labs/conduit-connector-kinesis/common"
-	"github.com/conduitio/conduit-commons/config"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/oklog/ulid/v2"
@@ -53,6 +52,10 @@ type Source struct {
 	consumerARN *string
 }
 
+func (s *Source) Config() sdk.SourceConfig {
+	return &s.config
+}
+
 type Shard struct {
 	ShardID     *string
 	EventStream *kinesis.SubscribeToShardEventStream
@@ -77,31 +80,16 @@ func New() sdk.Source {
 		tomb:      nil,
 		buffer:    make(chan opencdc.Record, 100),
 		streamMap: cmap.New[*kinesis.SubscribeToShardEventStream](),
-	}, sdk.DefaultSourceMiddleware()...)
+	})
 }
 
-func (s *Source) Parameters() config.Parameters {
-	return s.config.Parameters()
-}
-
-func (s *Source) Configure(ctx context.Context, cfg config.Config) error {
-	err := sdk.Util.ParseConfig(ctx, cfg, &s.config, s.config.Parameters())
-	if err != nil {
-		return fmt.Errorf("invalid config: %w", err)
-	}
-	sdk.Logger(ctx).Info().Msg("parsed configuration")
-
+func (s *Source) Open(ctx context.Context, pos opencdc.Position) (err error) {
 	s.client, err = common.NewClient(ctx, s.httpClient, s.config.Config)
 	if err != nil {
 		return fmt.Errorf("failed to create client: %w", err)
 	}
 
 	sdk.Logger(ctx).Info().Msg("created source client")
-
-	return nil
-}
-
-func (s *Source) Open(ctx context.Context, pos opencdc.Position) error {
 	// DescribeStream to know that the stream ARN is valid and usable, ie test connection
 	streamOutput, err := s.client.DescribeStream(ctx, &kinesis.DescribeStreamInput{
 		StreamName: &s.config.StreamName,
