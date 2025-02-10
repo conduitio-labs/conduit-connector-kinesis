@@ -68,7 +68,6 @@ func TestWrite_MultiStream_UsingColField(t *testing.T) {
 	assertWrittenRecordsOnStream(ctx, is, stream1, recs1)
 	assertWrittenRecordsOnStream(ctx, is, stream2, recs2)
 	assertWrittenRecordsOnStream(ctx, is, stream3, recs3)
-
 }
 
 func TestWrite_MultiStream_UsingTemplate(t *testing.T) {
@@ -109,7 +108,6 @@ func TestWrite_MultiStream_UsingTemplate(t *testing.T) {
 	assertWrittenRecordsOnStream(ctx, is, stream1, recs1)
 	assertWrittenRecordsOnStream(ctx, is, stream2, recs2)
 	assertWrittenRecordsOnStream(ctx, is, stream3, recs3)
-
 }
 
 func TestTeardown_Open(t *testing.T) {
