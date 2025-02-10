@@ -31,85 +31,85 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func TestWrite_MultiStream(t *testing.T) {
-	t.Run("using col field", func(t *testing.T) {
-		ctx := testContext(t)
-		is := is.New(t)
-		con := newDestination()
-		stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
-		defer cleanup1()
+func TestWrite_MultiStream_UsingColField(t *testing.T) {
+	ctx := testContext(t)
+	is := is.New(t)
+	con := newDestination()
+	stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
+	defer cleanup1()
 
-		stream2, cleanup2 := testutils.SetupTestStream(ctx, is)
-		defer cleanup2()
+	stream2, cleanup2 := testutils.SetupTestStream(ctx, is)
+	defer cleanup2()
 
-		stream3, cleanup3 := testutils.SetupTestStream(ctx, is)
-		defer cleanup3()
+	stream3, cleanup3 := testutils.SetupTestStream(ctx, is)
+	defer cleanup3()
 
-		// streamName is fetched from `opencdc.collection` field
-		configureDest(con, "")
+	// streamName is fetched from `opencdc.collection` field
+	configureDest(con, "")
 
-		is.NoErr(con.Open(ctx))
+	is.NoErr(con.Open(ctx))
 
-		defer testutils.TeardownDestination(ctx, is, con)
+	defer testutils.TeardownDestination(ctx, is, con)
 
-		var recs []opencdc.Record
-		recs1 := testRecordsStreamOnColField(t, stream1)
-		recs = append(recs, recs1...)
+	var recs []opencdc.Record
+	recs1 := testRecordsStreamOnColField(t, stream1)
+	recs = append(recs, recs1...)
 
-		recs2 := testRecordsStreamOnColField(t, stream2)
-		recs = append(recs, recs2...)
+	recs2 := testRecordsStreamOnColField(t, stream2)
+	recs = append(recs, recs2...)
 
-		recs3 := testRecordsStreamOnColField(t, stream3)
-		recs = append(recs, recs3...)
+	recs3 := testRecordsStreamOnColField(t, stream3)
+	recs = append(recs, recs3...)
 
-		written, err := con.Write(ctx, recs)
-		is.NoErr(err)
-		is.Equal(written, len(recs))
+	written, err := con.Write(ctx, recs)
+	is.NoErr(err)
+	is.Equal(written, len(recs))
 
-		assertWrittenRecordsOnStream(ctx, is, stream1, recs1)
-		assertWrittenRecordsOnStream(ctx, is, stream2, recs2)
-		assertWrittenRecordsOnStream(ctx, is, stream3, recs3)
-	})
+	assertWrittenRecordsOnStream(ctx, is, stream1, recs1)
+	assertWrittenRecordsOnStream(ctx, is, stream2, recs2)
+	assertWrittenRecordsOnStream(ctx, is, stream3, recs3)
 
-	t.Run("using template", func(t *testing.T) {
-		ctx := testContext(t)
-		is := is.New(t)
+}
 
-		con := newDestination()
-		stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
-		defer cleanup1()
+func TestWrite_MultiStream_UsingTemplate(t *testing.T) {
+	ctx := testContext(t)
+	is := is.New(t)
 
-		stream2, cleanup2 := testutils.SetupTestStream(ctx, is)
-		defer cleanup2()
+	con := newDestination()
+	stream1, cleanup1 := testutils.SetupTestStream(ctx, is)
+	defer cleanup1()
 
-		stream3, cleanup3 := testutils.SetupTestStream(ctx, is)
-		defer cleanup3()
+	stream2, cleanup2 := testutils.SetupTestStream(ctx, is)
+	defer cleanup2()
 
-		template := `{{ index .Metadata "streamName" }}`
-		configureDest(con, template)
+	stream3, cleanup3 := testutils.SetupTestStream(ctx, is)
+	defer cleanup3()
 
-		is.NoErr(con.Open(ctx))
+	template := `{{ index .Metadata "streamName" }}`
+	configureDest(con, template)
 
-		defer testutils.TeardownDestination(ctx, is, con)
+	is.NoErr(con.Open(ctx))
 
-		var recs []opencdc.Record
-		recs1 := testRecordsStreamOnMetadata(t, stream1)
-		recs = append(recs, recs1...)
+	defer testutils.TeardownDestination(ctx, is, con)
 
-		recs2 := testRecordsStreamOnMetadata(t, stream2)
-		recs = append(recs, recs2...)
+	var recs []opencdc.Record
+	recs1 := testRecordsStreamOnMetadata(t, stream1)
+	recs = append(recs, recs1...)
 
-		recs3 := testRecordsStreamOnMetadata(t, stream3)
-		recs = append(recs, recs3...)
+	recs2 := testRecordsStreamOnMetadata(t, stream2)
+	recs = append(recs, recs2...)
 
-		written, err := con.Write(ctx, recs)
-		is.NoErr(err)
-		is.Equal(written, len(recs))
+	recs3 := testRecordsStreamOnMetadata(t, stream3)
+	recs = append(recs, recs3...)
 
-		assertWrittenRecordsOnStream(ctx, is, stream1, recs1)
-		assertWrittenRecordsOnStream(ctx, is, stream2, recs2)
-		assertWrittenRecordsOnStream(ctx, is, stream3, recs3)
-	})
+	written, err := con.Write(ctx, recs)
+	is.NoErr(err)
+	is.Equal(written, len(recs))
+
+	assertWrittenRecordsOnStream(ctx, is, stream1, recs1)
+	assertWrittenRecordsOnStream(ctx, is, stream2, recs2)
+	assertWrittenRecordsOnStream(ctx, is, stream3, recs3)
+
 }
 
 func TestTeardown_Open(t *testing.T) {
@@ -258,125 +258,121 @@ func assertWrittenRecordsOnStream(
 	is.Equal(len(records), len(recs))
 }
 
-func TestWrite_CreateStreamIfNotExists(t *testing.T) {
-	t.Run("create stream in single collection mode", func(t *testing.T) {
-		ctx := testContext(t)
-		is := is.New(t)
-		con := newDestination()
-		testClient := testutils.NewTestClient(ctx, is)
+func TestWrite_CreateStreamIfNotExists_SingleCollection(t *testing.T) {
+	ctx := testContext(t)
+	is := is.New(t)
+	con := newDestination()
+	testClient := testutils.NewTestClient(ctx, is)
 
-		streamName := testutils.RandomStreamName("create_stream")
-		defer testutils.DeleteStream(ctx, is, testClient, streamName)
+	streamName := testutils.RandomStreamName("create_stream")
+	defer testutils.DeleteStream(ctx, is, testClient, streamName)
 
-		configureDest(con, streamName)
+	configureDest(con, streamName)
 
-		is.NoErr(con.Open(ctx))
+	is.NoErr(con.Open(ctx))
 
-		defer testutils.TeardownDestination(ctx, is, con)
+	defer testutils.TeardownDestination(ctx, is, con)
 
-		recs := testRecordsStreamOnColField(t, streamName)
+	recs := testRecordsStreamOnColField(t, streamName)
 
-		written, err := con.Write(ctx, recs)
-		is.NoErr(err)
-		is.Equal(written, len(recs))
+	written, err := con.Write(ctx, recs)
+	is.NoErr(err)
+	is.Equal(written, len(recs))
 
-		assertWrittenRecordsOnStream(ctx, is, streamName, recs)
-	})
+	assertWrittenRecordsOnStream(ctx, is, streamName, recs)
+}
 
-	return
+func TestWrite_CreateStreamIfNotExists_MultiCollection(t *testing.T) {
+	ctx := testContext(t)
+	is := is.New(t)
+	con := newDestination()
+	testClient := testutils.NewTestClient(ctx, is)
 
-	t.Run("create stream in multi collection mode", func(t *testing.T) {
-		ctx := testContext(t)
-		is := is.New(t)
-		con := newDestination()
-		testClient := testutils.NewTestClient(ctx, is)
+	// create 1 stream beforehand and 2 stream names. The destination should
+	// be able to write to the first stream without any
+	// "streamAlreadyExists" error and create the 2 later streams.
 
-		// create 1 stream beforehand and 2 stream names. The destination should
-		// be able to write to the first stream without any
-		// "streamAlreadyExists" error and create the 2 later streams.
+	streamName1, cleanupStream1 := testutils.SetupTestStream(ctx, is)
+	defer cleanupStream1()
 
-		streamName1, cleanupStream1 := testutils.SetupTestStream(ctx, is)
-		defer cleanupStream1()
+	streamName2 := testutils.RandomStreamName("create_stream")
+	defer testutils.DeleteStream(ctx, is, testClient, streamName2)
 
-		streamName2 := testutils.RandomStreamName("create_stream")
-		defer testutils.DeleteStream(ctx, is, testClient, streamName2)
+	streamName3 := testutils.RandomStreamName("create_stream")
+	defer testutils.DeleteStream(ctx, is, testClient, streamName3)
 
-		streamName3 := testutils.RandomStreamName("create_stream")
-		defer testutils.DeleteStream(ctx, is, testClient, streamName3)
+	// streamName is fetched from `opencdc.collection` field
+	configureDest(con, "")
 
-		// streamName is fetched from `opencdc.collection` field
-		configureDest(con, "")
+	is.NoErr(con.Open(ctx))
 
-		is.NoErr(con.Open(ctx))
+	defer testutils.TeardownDestination(ctx, is, con)
 
-		defer testutils.TeardownDestination(ctx, is, con)
+	var recs []opencdc.Record
+	recs1 := testRecordsStreamOnColField(t, streamName1)
+	recs = append(recs, recs1...)
+	recs2 := testRecordsStreamOnColField(t, streamName2)
+	recs = append(recs, recs2...)
+	recs3 := testRecordsStreamOnColField(t, streamName3)
+	recs = append(recs, recs3...)
 
-		var recs []opencdc.Record
-		recs1 := testRecordsStreamOnColField(t, streamName1)
-		recs = append(recs, recs1...)
-		recs2 := testRecordsStreamOnColField(t, streamName2)
-		recs = append(recs, recs2...)
-		recs3 := testRecordsStreamOnColField(t, streamName3)
-		recs = append(recs, recs3...)
+	written, err := con.Write(ctx, recs)
+	is.NoErr(err)
+	is.Equal(written, len(recs))
 
-		written, err := con.Write(ctx, recs)
-		is.NoErr(err)
-		is.Equal(written, len(recs))
+	assertWrittenRecordsOnStream(ctx, is, streamName1, recs1)
+	assertWrittenRecordsOnStream(ctx, is, streamName2, recs2)
+	assertWrittenRecordsOnStream(ctx, is, streamName3, recs3)
+}
 
-		assertWrittenRecordsOnStream(ctx, is, streamName1, recs1)
-		assertWrittenRecordsOnStream(ctx, is, streamName2, recs2)
-		assertWrittenRecordsOnStream(ctx, is, streamName3, recs3)
-	})
+func TestWrite_CreateStreamIfNotExists_AutoCreateFalseErrorsSingle(t *testing.T) {
+	ctx := testContext(t)
+	is := is.New(t)
+	con := newDestination()
 
-	t.Run("errors if option set to false in single collection mode", func(t *testing.T) {
-		ctx := testContext(t)
-		is := is.New(t)
-		con := newDestination()
+	streamName := testutils.RandomStreamName("create_stream")
 
-		streamName := testutils.RandomStreamName("create_stream")
+	cfg := configureDest(con, streamName)
+	cfg.AutoCreateStreams = false
 
-		cfg := configureDest(con, streamName)
-		cfg.AutoCreateStreams = false
+	err := con.Open(ctx) // error is expected, since stream doesn't exist
+	is.True(err != nil)
 
-		err := con.Open(ctx) // error is expected, since stream doesn't exist
-		is.True(err != nil)
+	// changing the public api just to check for a specific error message
+	// feels a bit of an overkill, so instead we'll just check the error.
 
-		// changing the public api just to check for a specific error message
-		// feels a bit of an overkill, so instead we'll just check the error.
+	errMsg := err.Error()
+	want := fmt.Sprintf("stream %s does not exist", streamName)
+	if !strings.Contains(errMsg, want) {
+		t.Fatalf("expected error to contain %s, got %s", want, errMsg)
+	}
+}
 
-		errMsg := err.Error()
-		want := fmt.Sprintf("stream %s does not exist", streamName)
-		if !strings.Contains(errMsg, want) {
-			t.Fatalf("expected error to contain %s, got %s", want, errMsg)
-		}
-	})
+func TestWrite_CreateStreamIfNotExists_AutoCreateFalseErrorsMulti(t *testing.T) {
+	ctx := testContext(t)
+	is := is.New(t)
+	con := newDestination()
 
-	t.Run("errors if option set to false in multi collection mode", func(t *testing.T) {
-		ctx := testContext(t)
-		is := is.New(t)
-		con := newDestination()
+	cfg := configureDest(con, "")
+	cfg.AutoCreateStreams = false
 
-		cfg := configureDest(con, "")
-		cfg.AutoCreateStreams = false
+	is.NoErr(con.Open(ctx))
+	defer testutils.TeardownDestination(ctx, is, con)
 
-		is.NoErr(con.Open(ctx))
-		defer testutils.TeardownDestination(ctx, is, con)
+	recs := testRecordsStreamOnColField(t, "non-existent-stream")
 
-		recs := testRecordsStreamOnColField(t, "non-existent-stream")
+	written, err := con.Write(ctx, recs)
+	is.True(err != nil)
+	is.Equal(written, 0)
 
-		written, err := con.Write(ctx, recs)
-		is.True(err != nil)
-		is.Equal(written, 0)
+	// Here, instead of checking the error message, we'll just check the
+	// error type. The write method directly interacts with the AWS SDK,
+	// so we can just check the error type.
 
-		// Here, instead of checking the error message, we'll just check the
-		// error type. The write method directly interacts with the AWS SDK,
-		// so we can just check the error type.
-
-		var notFoundErr *types.ResourceNotFoundException
-		if !errors.As(err, &notFoundErr) {
-			t.Fatalf("expected error to be of type %T, got %T", notFoundErr, err)
-		}
-	})
+	var notFoundErr *types.ResourceNotFoundException
+	if !errors.As(err, &notFoundErr) {
+		t.Fatalf("expected error to be of type %T, got %T", notFoundErr, err)
+	}
 }
 
 func testContext(t *testing.T) context.Context {
