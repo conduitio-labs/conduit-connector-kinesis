@@ -1,0 +1,222 @@
+version: "1.0"
+specification:
+  name: kinesis
+  summary: A Conduit Connector for AWS Kinesis Data Streaming
+  description: A source and destination connector for AWS Kinesis Data Streaming
+  version: (devel)
+  author: Meroxa, Inc.
+  source:
+    parameters:
+      - name: aws.accessKeyId
+        description: AWSAccessKeyID is the amazon access key id
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: aws.region
+        description: AWSRegion is the region where the stream is hosted
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: aws.secretAccessKey
+        description: AWSSecretAccessKey is the amazon secret access key
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: streamName
+        description: StreamName is the name of the Kinesis Data Stream.
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: aws.url
+        description: AWSURL is the URL for endpoint override - testing/dry-run only
+        type: string
+        default: ""
+        validations: []
+      - name: startFromLatest
+        description: |-
+          startFromLatest defaults to false. When true, sets the iterator type to
+          LATEST (iterates from the point that the connection begins = CDC). when false, sets the iterator type
+          to TRIM_HORIZON (iterates from the oldest record in the shard = snapshot). Iterators eventually
+          shift to latest after snapshot has been written
+        type: bool
+        default: ""
+        validations: []
+      - name: sdk.batch.delay
+        description: Maximum delay before an incomplete batch is read from the source.
+        type: duration
+        default: "0"
+        validations:
+          - type: greater-than
+            value: "-1"
+      - name: sdk.batch.size
+        description: Maximum size of batch before it gets read from the source.
+        type: int
+        default: "0"
+        validations:
+          - type: greater-than
+            value: "-1"
+      - name: sdk.schema.context.enabled
+        description: |-
+          Specifies whether to use a schema context name. If set to false, no schema context name will
+          be used, and schemas will be saved with the subject name specified in the connector
+          (not safe because of name conflicts).
+        type: bool
+        default: "true"
+        validations: []
+      - name: sdk.schema.context.name
+        description: |-
+          Schema context name to be used. Used as a prefix for all schema subject names.
+          If empty, defaults to the connector ID.
+        type: string
+        default: ""
+        validations: []
+      - name: sdk.schema.extract.key.enabled
+        description: Whether to extract and encode the record key with a schema.
+        type: bool
+        default: "true"
+        validations: []
+      - name: sdk.schema.extract.key.subject
+        description: |-
+          The subject of the key schema. If the record metadata contains the field
+          "opencdc.collection" it is prepended to the subject name and separated
+          with a dot.
+        type: string
+        default: key
+        validations: []
+      - name: sdk.schema.extract.payload.enabled
+        description: Whether to extract and encode the record payload with a schema.
+        type: bool
+        default: "true"
+        validations: []
+      - name: sdk.schema.extract.payload.subject
+        description: |-
+          The subject of the payload schema. If the record metadata contains the
+          field "opencdc.collection" it is prepended to the subject name and
+          separated with a dot.
+        type: string
+        default: payload
+        validations: []
+      - name: sdk.schema.extract.type
+        description: The type of the payload schema.
+        type: string
+        default: avro
+        validations:
+          - type: inclusion
+            value: avro
+  destination:
+    parameters:
+      - name: aws.accessKeyId
+        description: AWSAccessKeyID is the amazon access key id
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: aws.region
+        description: AWSRegion is the region where the stream is hosted
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: aws.secretAccessKey
+        description: AWSSecretAccessKey is the amazon secret access key
+        type: string
+        default: ""
+        validations:
+          - type: required
+            value: ""
+      - name: auto.create.streams
+        description: |-
+          AutoCreateStreams makes the destination create a new stream if it does
+          not exist when writing records.
+        type: bool
+        default: "true"
+        validations: []
+      - name: aws.url
+        description: AWSURL is the URL for endpoint override - testing/dry-run only
+        type: string
+        default: ""
+        validations: []
+      - name: partitionKeyTemplate
+        description: |-
+          PartitionKeyTemplate accepts a go template as an argument, with the
+          record being written as the main data context. If an empty template is
+          passed, the partition key will adopt the record key string value. If the
+          record key string exceeds 256 it will be trimmed down from start to fit
+          the partition key size
+        type: string
+        default: ""
+        validations: []
+      - name: streamName
+        description: |-
+          StreamName is the name of the Kinesis Data Stream. It can contain a
+          [Go template](https://pkg.go.dev/text/template) that will be executed
+          for each record to determine the stream name. By default, the stream
+          name is the value of the `opencdc.collection` metadata field.
+        type: string
+        default: '{{ index .Metadata "opencdc.collection" }}'
+        validations: []
+      - name: sdk.batch.delay
+        description: Maximum delay before an incomplete batch is written to the destination.
+        type: duration
+        default: "0"
+        validations: []
+      - name: sdk.batch.size
+        description: Maximum size of batch before it gets written to the destination.
+        type: int
+        default: "0"
+        validations:
+          - type: greater-than
+            value: "-1"
+      - name: sdk.rate.burst
+        description: |-
+          Allow bursts of at most X records (0 or less means that bursts are not
+          limited). Only takes effect if a rate limit per second is set. Note that
+          if `sdk.batch.size` is bigger than `sdk.rate.burst`, the effective batch
+          size will be equal to `sdk.rate.burst`.
+        type: int
+        default: "0"
+        validations:
+          - type: greater-than
+            value: "-1"
+      - name: sdk.rate.perSecond
+        description: Maximum number of records written per second (0 means no rate limit).
+        type: float
+        default: "0"
+        validations:
+          - type: greater-than
+            value: "-1"
+      - name: sdk.record.format
+        description: |-
+          The format of the output record. See the Conduit documentation for a full
+          list of supported formats (https://conduit.io/docs/using/connectors/configuration-parameters/output-format).
+        type: string
+        default: opencdc/json
+        validations: []
+      - name: sdk.record.format.options
+        description: |-
+          Options to configure the chosen output record format. Options are normally
+          key=value pairs separated with comma (e.g. opt1=val2,opt2=val2), except
+          for the `template` record format, where options are a Go template.
+        type: string
+        default: ""
+        validations: []
+      - name: sdk.schema.extract.key.enabled
+        description: Whether to extract and decode the record key with a schema.
+        type: bool
+        default: "true"
+        validations: []
+      - name: sdk.schema.extract.payload.enabled
+        description: Whether to extract and decode the record payload with a schema.
+        type: bool
+        default: "true"
+        validations: []

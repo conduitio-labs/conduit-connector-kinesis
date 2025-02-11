@@ -18,7 +18,6 @@ import (
 	"context"
 	"testing"
 
-	testutils "github.com/conduitio-labs/conduit-connector-kinesis/test"
 	"github.com/conduitio/conduit-commons/opencdc"
 	sdk "github.com/conduitio/conduit-connector-sdk"
 	"github.com/matryer/is"
@@ -48,12 +47,12 @@ func TestCreatePutRequestInput(t *testing.T) {
 	records := []opencdc.Record{record1, record2, record3, record4}
 
 	{
-		dest := Destination{}
-		cfg := testutils.GetTestConfig("random-stream")
-		cfg[ConfigPartitionKeyTemplate] = "partitionKey"
+		dest := &Destination{}
 
-		err := dest.Configure(ctx, cfg)
-		is.NoErr(err)
+		cfg := configureDest(dest, "random-stream")
+		cfg.PartitionKeyTemplate = "partitionKey"
+
+		is.NoErr(dest.init(ctx))
 
 		request, err := dest.createPutRequestInput(ctx, records, "streamName")
 		is.NoErr(err)
@@ -66,6 +65,8 @@ func TestCreatePutRequestInput(t *testing.T) {
 
 	{
 		dest := Destination{config: Config{}}
+
+		is.NoErr(dest.init(ctx))
 
 		request, err := dest.createPutRequestInput(ctx, records, "streamName")
 		is.NoErr(err)
@@ -85,13 +86,12 @@ func TestPartitionKey(t *testing.T) {
 	t.Run("with partition key template defined", func(t *testing.T) {
 		ctx := context.Background()
 		is := is.New(t)
-		d := Destination{}
+		d := &Destination{}
 
-		cfg := testutils.GetTestConfig("random-stream")
-		cfg[ConfigPartitionKeyTemplate] = `{{ printf "%s" .Position }}`
+		cfg := configureDest(d, "random-stream")
+		cfg.PartitionKeyTemplate = `{{ printf "%s" .Position }}`
 
-		err := d.Configure(ctx, cfg)
-		is.NoErr(err)
+		is.NoErr(d.init(ctx))
 
 		expectedPartitionKey := opencdc.Position("test-partition-key")
 
@@ -106,6 +106,8 @@ func TestPartitionKey(t *testing.T) {
 		ctx := context.Background()
 		is := is.New(t)
 		d := Destination{}
+		is.NoErr(d.init(ctx))
+
 		expectedPartitionKey := opencdc.RawData("test-position")
 
 		partitionKey, err := d.partitionKey(ctx, opencdc.Record{
@@ -114,4 +116,15 @@ func TestPartitionKey(t *testing.T) {
 		is.NoErr(err)
 		is.Equal(partitionKey, string(expectedPartitionKey))
 	})
+}
+
+func configureDest(d sdk.Destination, streamName string) *Config {
+	cfg := d.Config().(*Config)
+	cfg.AWSRegion = "us-east-1"
+	cfg.AWSAccessKeyID = "accesskeymock"
+	cfg.AWSSecretAccessKey = "accesssecretmock"
+	cfg.AWSURL = "http://localhost:4566"
+	cfg.StreamName = streamName
+
+	return cfg
 }

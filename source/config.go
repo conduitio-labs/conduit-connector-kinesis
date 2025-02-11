@@ -14,10 +14,14 @@
 
 package source
 
-import "github.com/conduitio-labs/conduit-connector-kinesis/common"
+import (
+	"github.com/conduitio-labs/conduit-connector-kinesis/common"
+	sdk "github.com/conduitio/conduit-connector-sdk"
+)
 
-//go:generate paramgen -output=config_paramgen.go Config
 type Config struct {
+	sdk.DefaultSourceMiddleware
+
 	common.Config
 
 	// StreamName is the name of the Kinesis Data Stream.
