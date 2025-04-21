@@ -24,12 +24,12 @@ type Config struct {
 
 	common.Config
 
-	// StreamName is the name of the Kinesis Data Stream.
+	// The name of the Kinesis Data Stream.
 	StreamName string `json:"streamName" validate:"required"`
 
-	// startFromLatest defaults to false. When true, sets the iterator type to
-	// LATEST (iterates from the point that the connection begins = CDC). when false, sets the iterator type
-	// to TRIM_HORIZON (iterates from the oldest record in the shard = snapshot). Iterators eventually
-	// shift to latest after snapshot has been written
+	// If true, sets the iterator type to LATEST (iterates from the point
+	// that the connection begins = CDC). Otherwise it sets the iterator type
+	// to TRIM_HORIZON (iterates from the oldest record in the shard = snapshot).
+	// Iterators eventually shift to latest after snapshot has been written.
 	StartFromLatest bool `json:"startFromLatest"`
 }

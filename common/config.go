@@ -15,12 +15,12 @@
 package common
 
 type Config struct {
-	// AWSAccessKeyID is the amazon access key id
+	// The amazon access key id
 	AWSAccessKeyID string `json:"aws.accessKeyId" validate:"required"`
-	// AWSSecretAccessKey is the amazon secret access key
+	// The amazon secret access key
 	AWSSecretAccessKey string `json:"aws.secretAccessKey" validate:"required"`
-	// AWSRegion is the region where the stream is hosted
+	// The region where the stream is hosted
 	AWSRegion string `json:"aws.region" validate:"required"`
-	// AWSURL is the URL for endpoint override - testing/dry-run only
+	// The URL for endpoint override - testing/dry-run only
 	AWSURL string `json:"aws.url"`
 }
