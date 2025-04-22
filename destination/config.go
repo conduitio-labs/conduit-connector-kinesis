@@ -22,23 +22,21 @@ import (
 type Config struct {
 	sdk.DefaultDestinationMiddleware
 
-	// Config includes parameters that are the same in the source and destination.
 	common.Config
 
-	// StreamName is the name of the Kinesis Data Stream. It can contain a
+	// The name of the Kinesis Data Stream. It can contain a
 	// [Go template](https://pkg.go.dev/text/template) that will be executed
 	// for each record to determine the stream name. By default, the stream
 	// name is the value of the `opencdc.collection` metadata field.
 	StreamName string `json:"streamName" default:"{{ index .Metadata \"opencdc.collection\" }}"`
 
-	// PartitionKeyTemplate accepts a go template as an argument, with the
-	// record being written as the main data context. If an empty template is
-	// passed, the partition key will adopt the record key string value. If the
-	// record key string exceeds 256 it will be trimmed down from start to fit
-	// the partition key size
+	// Accepts a go template as an argument, with the record being written as
+	// the main data context. If an empty template is passed, the partition key
+	// will adopt the record key string value. If the record key string exceeds
+	// 256 it will be trimmed down from start to fit the partition key size
 	PartitionKeyTemplate string `json:"partitionKeyTemplate"`
 
-	// AutoCreateStreams makes the destination create a new stream if it does
-	// not exist when writing records.
+	// Makes the destination create a new stream if it does not exist when
+	// writing records.
 	AutoCreateStreams bool `json:"auto.create.streams" default:"true"`
 }

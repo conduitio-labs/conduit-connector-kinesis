@@ -8,44 +8,44 @@ specification:
   source:
     parameters:
       - name: aws.accessKeyId
-        description: AWSAccessKeyID is the amazon access key id
+        description: The amazon access key id
         type: string
         default: ""
         validations:
           - type: required
             value: ""
       - name: aws.region
-        description: AWSRegion is the region where the stream is hosted
+        description: The region where the stream is hosted
         type: string
         default: ""
         validations:
           - type: required
             value: ""
       - name: aws.secretAccessKey
-        description: AWSSecretAccessKey is the amazon secret access key
+        description: The amazon secret access key
         type: string
         default: ""
         validations:
           - type: required
             value: ""
       - name: streamName
-        description: StreamName is the name of the Kinesis Data Stream.
+        description: The name of the Kinesis Data Stream.
         type: string
         default: ""
         validations:
           - type: required
             value: ""
       - name: aws.url
-        description: AWSURL is the URL for endpoint override - testing/dry-run only
+        description: The URL for endpoint override - testing/dry-run only
         type: string
         default: ""
         validations: []
       - name: startFromLatest
         description: |-
-          startFromLatest defaults to false. When true, sets the iterator type to
-          LATEST (iterates from the point that the connection begins = CDC). when false, sets the iterator type
-          to TRIM_HORIZON (iterates from the oldest record in the shard = snapshot). Iterators eventually
-          shift to latest after snapshot has been written
+          If true, sets the iterator type to LATEST (iterates from the point
+          that the connection begins = CDC). Otherwise it sets the iterator type
+          to TRIM_HORIZON (iterates from the oldest record in the shard = snapshot).
+          Iterators eventually shift to latest after snapshot has been written.
         type: bool
         default: ""
         validations: []
@@ -112,21 +112,21 @@ specification:
   destination:
     parameters:
       - name: aws.accessKeyId
-        description: AWSAccessKeyID is the amazon access key id
+        description: The amazon access key id
         type: string
         default: ""
         validations:
           - type: required
             value: ""
       - name: aws.region
-        description: AWSRegion is the region where the stream is hosted
+        description: The region where the stream is hosted
         type: string
         default: ""
         validations:
           - type: required
             value: ""
       - name: aws.secretAccessKey
-        description: AWSSecretAccessKey is the amazon secret access key
+        description: The amazon secret access key
         type: string
         default: ""
         validations:
@@ -134,29 +134,28 @@ specification:
             value: ""
       - name: auto.create.streams
         description: |-
-          AutoCreateStreams makes the destination create a new stream if it does
-          not exist when writing records.
+          Makes the destination create a new stream if it does not exist when
+          writing records.
         type: bool
         default: "true"
         validations: []
       - name: aws.url
-        description: AWSURL is the URL for endpoint override - testing/dry-run only
+        description: The URL for endpoint override - testing/dry-run only
         type: string
         default: ""
         validations: []
       - name: partitionKeyTemplate
         description: |-
-          PartitionKeyTemplate accepts a go template as an argument, with the
-          record being written as the main data context. If an empty template is
-          passed, the partition key will adopt the record key string value. If the
-          record key string exceeds 256 it will be trimmed down from start to fit
-          the partition key size
+          Accepts a go template as an argument, with the record being written as
+          the main data context. If an empty template is passed, the partition key
+          will adopt the record key string value. If the record key string exceeds
+          256 it will be trimmed down from start to fit the partition key size
         type: string
         default: ""
         validations: []
       - name: streamName
         description: |-
-          StreamName is the name of the Kinesis Data Stream. It can contain a
+          The name of the Kinesis Data Stream. It can contain a
           [Go template](https://pkg.go.dev/text/template) that will be executed
           for each record to determine the stream name. By default, the stream
           name is the value of the `opencdc.collection` metadata field.
