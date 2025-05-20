@@ -8,7 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.67
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.35.0
 	github.com/aws/smithy-go v1.22.3
-	github.com/conduitio/conduit-connector-sdk v0.13.3
+	github.com/conduitio/conduit-connector-sdk v0.13.4
 	github.com/google/uuid v1.6.0
 	github.com/matryer/is v1.4.1
 	github.com/oklog/ulid/v2 v2.1.0
@@ -44,7 +44,6 @@ require (
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.1 // indirect
 	github.com/twmb/go-cache v1.2.1 // indirect
 	github.com/uudashr/iface v1.3.1 // indirect
-	go.uber.org/mock v0.5.2 // indirect
 )
 
 require (
@@ -243,7 +242,7 @@ require (
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.33.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250219182151-9fdb1cabc7b2 // indirect
-	google.golang.org/grpc v1.71.0 // indirect
+	google.golang.org/grpc v1.72.1 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
