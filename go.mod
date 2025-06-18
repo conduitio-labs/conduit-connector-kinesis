@@ -3,7 +3,7 @@ module github.com/conduitio-labs/conduit-connector-kinesis
 go 1.24.2
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.36.4
+	github.com/aws/aws-sdk-go-v2 v1.36.5
 	github.com/aws/aws-sdk-go-v2/config v1.29.16
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.69
 	github.com/aws/aws-sdk-go-v2/service/kinesis v1.35.2
