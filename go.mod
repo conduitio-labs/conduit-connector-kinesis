@@ -6,7 +6,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.40.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.0
-	github.com/aws/aws-sdk-go-v2/service/kinesis v1.42.4
+	github.com/aws/aws-sdk-go-v2/service/kinesis v1.42.5
 	github.com/aws/smithy-go v1.23.2
 	github.com/conduitio/conduit-connector-sdk v0.14.1
 	github.com/google/uuid v1.6.0
