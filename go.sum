@@ -50,8 +50,8 @@ github.com/ashanbrown/makezero v1.2.0 h1:/2Lp1bypdmK9wDIq7uWBlDF1iMUpIIS4A+pF6C9
 github.com/ashanbrown/makezero v1.2.0/go.mod h1:dxlPhHbDMC6N6xICzFBSK+4njQDdK8euNO0qjQMtGY4=
 github.com/aws/aws-sdk-go-v2 v1.43.3 h1:XJIcfv8uDs2ukdQsoAC8/Ebu1ejxwzlayl2ZsiFns2A=
 github.com/aws/aws-sdk-go-v2 v1.43.3/go.mod h1:70vwSy16txshwG+g55WkpgPKDIByzHI8ccBsOteo3bQ=
-github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.15 h1:rq/p1VNFfygoKEQ9hHMKsKBE98lspPvT8IxaFs5mFhw=
-github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.15/go.mod h1:bELIhlPfW8OkpDhP1MvCjHDtvv8NhiBTz+K4o26zrXA=
+github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.16 h1:aiuaKlDweRC5qExJondpWjOgyzMHpofpwspGXUtwn4c=
+github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.16/go.mod h1:nG/LOlmox9BDe9HvQnXWzgcK8uKbgBMZ/Hp5pVt/21I=
 github.com/aws/aws-sdk-go-v2/config v1.32.34 h1:o+YAizrX562nEZXaB38uYTK8RvIsvW0uuRP+e5e0Pfk=
 github.com/aws/aws-sdk-go-v2/config v1.32.34/go.mod h1:wc0zYRChOniiufvdWiRVf3jgXSgbkvaD683IHHHc2ZQ=
 github.com/aws/aws-sdk-go-v2/credentials v1.19.33 h1:/e5V3EWfeDiW6cuRxHsC8gbwko4/vvVYPJR2afBKFFY=
@@ -68,8 +68,8 @@ github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.15 h1:JJLBQx
 github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.15/go.mod h1:lQknBIe78MVL0cQOQDlag8KGflMbMEVFx9mB6O8ENvk=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.34 h1:sYg4qHWLqsjp15PzX7XCOHSOgKEGoZ5vQY43VvZ1pas=
 github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.13.34/go.mod h1:N58SSz3roKf1HzW5qRaOiyk6MbDLTKgLPvlTfJ90iyI=
-github.com/aws/aws-sdk-go-v2/service/kinesis v1.46.2 h1:5vTI4FyvUbIsUr67MVy53z6rJUF3MAjO1tECET37jGw=
-github.com/aws/aws-sdk-go-v2/service/kinesis v1.46.2/go.mod h1:VZpY8CMd9VSA4/BeIwatzdkWkKnAMJiT7KcTSue/s30=
+github.com/aws/aws-sdk-go-v2/service/kinesis v1.46.3 h1:KvSedZL5QcPT/RYZsOIbGD4bv3e74/9SKq/zZ9Vuwbs=
+github.com/aws/aws-sdk-go-v2/service/kinesis v1.46.3/go.mod h1:mAlmMC6IFSLbFxi9YTUMsNLNzJsR20Wpw8sbiv7eafM=
 github.com/aws/aws-sdk-go-v2/service/signin v1.5.3 h1:togAtAmgV5IGMnQDuBDJeM8z5Y5RN6G7xeOgphWz+Yc=
 github.com/aws/aws-sdk-go-v2/service/signin v1.5.3/go.mod h1:T7xKUUUvN7W3RW8UmMvKnD12xqh+Ux2gCPHPhnt64Dg=
 github.com/aws/aws-sdk-go-v2/service/sso v1.33.3 h1:YjH64OUytnWZBHUtM9GMyi4ZWBiSQdEJkZuPykOIe44=
