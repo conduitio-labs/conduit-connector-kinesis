@@ -3,7 +3,7 @@ specification:
   name: kinesis
   summary: A Conduit Connector for AWS Kinesis Data Streaming
   description: A source and destination connector for AWS Kinesis Data Streaming
-  version: (devel)
+  version: v0.2.1
   author: Meroxa, Inc.
   source:
     parameters:
